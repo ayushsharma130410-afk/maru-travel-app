@@ -1,0 +1,49 @@
+{
+  "rules": {
+    "cities": {
+      ".read": true,
+      ".write": "auth != null && auth.token.email == 'reshu.ranjan@gmail.com'"
+    },
+    "hotels": {
+      ".read": true,
+      ".write": "auth != null && auth.token.email == 'reshu.ranjan@gmail.com'"
+    },
+    "activities": {
+      ".read": true,
+      ".write": "auth != null && auth.token.email == 'reshu.ranjan@gmail.com'"
+    },
+    "guides": {
+      ".read": true,
+      ".write": "auth != null && auth.token.email == 'reshu.ranjan@gmail.com'"
+    },
+    "drivers": {
+      ".read": true,
+      ".write": "auth != null && auth.token.email == 'reshu.ranjan@gmail.com'"
+    },
+    "restaurants": {
+      ".read": true,
+      ".write": "auth != null && auth.token.email == 'reshu.ranjan@gmail.com'"
+    },
+    "tours": {
+      ".read": true,
+      // Allow creation/updates, but only the Operator can delete a tour.
+      // We also ensure that if it's an update from a driver/guide, they can only update the 'itinerary' node.
+      "$tourId": {
+        ".write": "auth != null && auth.token.email == 'reshu.ranjan@gmail.com'",
+        "itinerary": {
+          // Allow drivers/guides to update itinerary (status, arrived, etc.)
+          ".write": true
+        }
+      }
+    },
+    "locations": {
+      ".read": true,
+      ".write": true
+    },
+    "complaints": {
+      ".read": "auth != null && auth.token.email == 'reshu.ranjan@gmail.com'",
+      // Anyone can submit a complaint
+      ".write": true
+    }
+  }
+}

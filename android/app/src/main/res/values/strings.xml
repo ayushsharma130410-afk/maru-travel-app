@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Maru Travel</string>
+    <string name="title_activity_main">Maru Travel</string>
+    <string name="package_name">com.marutravel.app</string>
+    <string name="custom_url_scheme">com.marutravel.app</string>
+</resources>

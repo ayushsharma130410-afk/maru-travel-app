@@ -1,0 +1,100 @@
+.print-page-border {
+  display: none;
+}
+
+@media print {
+  /* Hide screen elements */
+  .no-print,
+  .bottom-nav-bar,
+  .portal-header,
+  header.portal-header,
+  div.no-print {
+    display: none !important;
+  }
+
+  /* Reset HTML, body, and root for printing */
+  html, body, #root {
+    width: auto !important;
+    height: auto !important;
+    overflow: visible !important;
+    position: static !important;
+    background: white !important;
+    color: black !important;
+  }
+
+  /* Force container resets to prevent hidden parts */
+  .app-container {
+    display: block !important;
+    position: static !important;
+    overflow: visible !important;
+    width: auto !important;
+    height: auto !important;
+    min-height: auto !important;
+  }
+
+  .app-container > *:not(.print-overlay) {
+    display: none !important;
+  }
+
+  .print-overlay {
+    position: static !important;
+    display: block !important;
+    overflow: visible !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: auto !important;
+    background: white !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  @page {
+    size: A4;
+    margin: 15mm !important; /* Proper margin for standard A4 printing */
+  }
+
+  #printable-area {
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-height: auto !important;
+    display: block !important;
+    position: static !important;
+    border: none !important;
+    background: white !important;
+  }
+
+  #printable-area table td,
+  #printable-area table th {
+    border-color: #000000 !important;
+  }
+
+  #printable-area .brief-day-card {
+    border: 1.5px solid #000000 !important;
+    background-color: #ffffff !important;
+    box-shadow: none !important;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  #printable-area .brief-services-box {
+    border: 1.5px solid #000000 !important;
+    background-color: #ffffff !important;
+  }
+
+  /* Sealed page border — position:fixed repeats on every printed page */
+  .print-page-border {
+    display: block !important;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    border: 2px solid #000000 !important; /* formal 2px solid black border */
+    z-index: 99999 !important;
+    pointer-events: none !important;
+    box-sizing: border-box !important;
+  }
+}

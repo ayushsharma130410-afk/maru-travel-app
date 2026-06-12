@@ -1,0 +1,774 @@
+/* Portals CSS: Maru Travel (World-Class UI) */
+
+/* ------------------------------------------
+   MANAGEMENT TABS & PANEL
+   ------------------------------------------ */
+.mgmt-tabs {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 24px;
+  scrollbar-width: none; /* Hide Scrollbar */
+}
+.mgmt-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.mgmt-tab {
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  padding: 10px 20px;
+  color: var(--text-secondary);
+  font-family: var(--font-title);
+  font-weight: 600;
+  font-size: 0.88rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mgmt-tab-active {
+  background-color: var(--primary);
+  color: white;
+  border-color: var(--primary);
+  box-shadow: 0 4px 12px rgba(26, 138, 125, 0.2);
+}
+
+.mgmt-content {
+  animation: fadeIn 0.4s ease-out;
+}
+
+/* Grids & Cards */
+.mgmt-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 20px;
+  margin-top: 16px;
+}
+
+@media (min-width: 640px) {
+  .mgmt-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .mgmt-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.mgmt-card {
+  background: white;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-light);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  display: flex;
+  flex-direction: column;
+}
+
+.mgmt-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-md);
+}
+
+.mgmt-card-img {
+  width: 100%;
+  height: 180px;
+  background-size: cover;
+  background-position: center;
+  position: relative;
+}
+
+.mgmt-card-body {
+  padding: 18px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.mgmt-card-title {
+  font-family: var(--font-title);
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--navy);
+  margin-bottom: 4px;
+}
+
+.mgmt-card-subtitle {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+}
+
+.mgmt-card-badge {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--navy);
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  box-shadow: var(--shadow-sm);
+}
+
+.mgmt-card-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-light);
+}
+
+/* Forms */
+.mgmt-form {
+  background: white;
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-md);
+  margin-bottom: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  animation: slideUp 0.4s ease-out;
+}
+
+.mgmt-form-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+@media (min-width: 640px) {
+  .mgmt-form-row {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.mgmt-input, .mgmt-select, .mgmt-textarea {
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background-color: var(--bg-primary);
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  transition: all 0.3s ease;
+}
+
+.mgmt-input:focus, .mgmt-select:focus, .mgmt-textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  background-color: white;
+  box-shadow: 0 0 0 3px rgba(26, 138, 125, 0.15);
+}
+
+.mgmt-search-bar {
+  display: flex;
+  align-items: center;
+  background-color: white;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  padding: 8px 16px;
+  margin-bottom: 20px;
+  width: 100%;
+  max-width: 400px;
+  gap: 10px;
+}
+
+.mgmt-search-bar input {
+  border: none;
+  background: transparent;
+  outline: none;
+  flex: 1;
+  font-size: 0.9rem;
+}
+
+/* Stats */
+.mgmt-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+@media (min-width: 1024px) {
+  .mgmt-stat-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.mgmt-stat-card {
+  background: white;
+  padding: 20px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-light);
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.mgmt-stat-icon-wrap {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-md);
+  background-color: var(--primary-light);
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Empty State */
+.mgmt-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  text-align: center;
+  background: white;
+  border-radius: var(--radius-lg);
+  border: 1px dashed var(--border);
+  color: var(--text-secondary);
+}
+
+/* ------------------------------------------
+   ITINERARY BUILDER
+   ------------------------------------------ */
+.itin-day-card {
+  background: white;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  padding: 20px;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow-sm);
+}
+
+.itin-day-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-light);
+  margin-bottom: 16px;
+}
+
+.itin-activity-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-primary);
+  margin-bottom: 8px;
+}
+
+.itin-time-picker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ------------------------------------------
+   EXPLORE DRAWER SYSTEM
+   ------------------------------------------ */
+.explore-drawer-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(27, 43, 75, 0.4);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 2000;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.explore-drawer-sheet {
+  width: 100%;
+  max-width: 480px;
+  height: 100%;
+  background-color: var(--bg-primary);
+  box-shadow: var(--shadow-xl);
+  display: flex;
+  flex-direction: column;
+  animation: slideLeft 0.35s cubic-bezier(0.25, 0.8, 0.25, 1);
+  overflow: hidden;
+}
+
+@keyframes slideLeft {
+  0% { transform: translateX(100%); }
+  100% { transform: translateX(0); }
+}
+
+.drawer-cover-banner {
+  height: 160px;
+  background-size: cover;
+  background-position: center;
+  position: relative;
+}
+
+.drawer-header-overlay {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: linear-gradient(to top, rgba(27, 43, 75, 0.9), transparent);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 16px 20px;
+  color: white;
+}
+
+.drawer-city-title {
+  font-family: var(--font-title);
+  font-size: 1.6rem;
+  font-weight: 800;
+}
+
+.drawer-meta-subtitle {
+  font-size: 0.82rem;
+  opacity: 0.85;
+}
+
+.drawer-close-btn {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  background: rgba(27, 43, 75, 0.6);
+  border: none;
+  color: white;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  z-index: 20;
+}
+
+.drawer-close-btn:hover {
+  background-color: var(--accent);
+}
+
+.drawer-tab-bar {
+  display: flex;
+  background-color: white;
+  border-bottom: 1px solid var(--border);
+  padding: 8px 12px;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.drawer-tab-bar::-webkit-scrollbar {
+  display: none;
+}
+
+.drawer-tab-btn {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-light);
+  color: var(--text-secondary);
+  padding: 8px 16px;
+  border-radius: var(--radius-full);
+  font-family: var(--font-title);
+  font-weight: 600;
+  font-size: 0.8rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.3s ease;
+}
+
+.drawer-tab-btn-active {
+  background-color: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}
+
+.drawer-scroll-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.drawer-action-footer {
+  padding: 16px 20px;
+  background: white;
+  border-top: 1px solid var(--border);
+}
+
+/* Explore Grid & Dining Card */
+.explore-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+
+.explore-place-card {
+  background: white;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 1px solid var(--border-light);
+  display: flex;
+  box-shadow: var(--shadow-sm);
+}
+
+.explore-place-thumb {
+  width: 100px;
+  height: 100px;
+  background-size: cover;
+  background-position: center;
+  flex-shrink: 0;
+}
+
+.explore-place-info {
+  padding: 12px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.explore-place-title {
+  font-family: var(--font-title);
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--navy);
+  margin-bottom: 4px;
+}
+
+.explore-place-desc {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.dining-card {
+  background: white;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-light);
+  padding: 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: var(--shadow-sm);
+}
+
+/* ------------------------------------------
+   HOTEL VIEW STYLES
+   ------------------------------------------ */
+.hotel-view-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.hotel-room-cover {
+  width: 100%;
+  height: 150px;
+  background-size: cover;
+  background-position: center;
+  border-radius: var(--radius-md);
+}
+
+.hotel-spec-title {
+  font-family: var(--font-title);
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--navy);
+}
+
+.hotel-rating-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hotel-stars {
+  color: #fbbf24;
+  display: flex;
+  gap: 2px;
+}
+
+.hotel-fields-box {
+  background-color: white;
+  border-radius: var(--radius-md);
+  padding: 16px;
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.hotel-field-row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.hotel-field-icon {
+  color: var(--primary);
+  margin-top: 2px;
+}
+
+.hotel-field-content {
+  flex: 1;
+}
+
+.hotel-field-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+}
+
+.hotel-field-value {
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.hotel-map-link-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  color: var(--primary);
+  font-weight: 600;
+  text-decoration: none;
+  margin-top: 8px;
+}
+
+/* ------------------------------------------
+   JOURNEY CAROUSEL & VISUALS
+   ------------------------------------------ */
+.visual-journey-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.carousel-timeline-container {
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  padding: 10px 0;
+  scrollbar-width: none;
+}
+.carousel-timeline-container::-webkit-scrollbar {
+  display: none;
+}
+
+.visual-day-card {
+  min-width: 280px;
+  max-width: 280px;
+  background: white;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-light);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+.visual-day-card-active {
+  border-color: var(--primary);
+  box-shadow: var(--shadow-md);
+  transform: scale(1.02);
+}
+
+.card-cover-wrapper {
+  height: 120px;
+  background-size: cover;
+  background-position: center;
+  position: relative;
+}
+
+.card-cover-overlay {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: linear-gradient(to top, rgba(27, 43, 75, 0.85), transparent);
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding: 12px 16px;
+  color: white;
+}
+
+.card-day-tag {
+  font-family: var(--font-title);
+  font-weight: 800;
+  font-size: 0.95rem;
+}
+
+.card-city-name {
+  font-family: var(--font-title);
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+
+.card-today-badge {
+  background-color: var(--accent);
+  color: white;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.card-activities-list {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+}
+
+.card-activity-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 0.82rem;
+}
+
+.card-activity-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--primary);
+  margin-top: 5px;
+}
+
+.card-activity-time {
+  font-weight: 700;
+  color: var(--primary);
+  white-space: nowrap;
+}
+
+.card-explore-btn-link {
+  padding: 12px 16px;
+  background-color: var(--bg-primary);
+  border-top: 1px solid var(--border-light);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--primary-dark);
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+/* ------------------------------------------
+   DRIVER TIMELINE / BADGES
+   ------------------------------------------ */
+.driver-day-card {
+  background: white;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  padding: 18px;
+  margin-bottom: 16px;
+  transition: all 0.3s ease;
+}
+
+.driver-day-active {
+  border-left: 5px solid var(--primary);
+  box-shadow: var(--shadow-md);
+}
+
+.driver-timeline {
+  display: flex;
+  gap: 16px;
+  position: relative;
+  padding-bottom: 24px;
+}
+
+.driver-timeline-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background-color: var(--border);
+  border: 3px solid white;
+  box-shadow: 0 0 0 2px var(--border);
+  z-index: 10;
+  flex-shrink: 0;
+  margin-top: 4px;
+}
+
+.driver-day-active .driver-timeline-dot {
+  background-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--primary);
+}
+
+.driver-timeline-line {
+  position: absolute;
+  left: 6px;
+  top: 18px;
+  bottom: 0;
+  width: 2px;
+  background-color: var(--border);
+}
+
+.driver-arrived-btn {
+  background-color: var(--primary);
+  color: white;
+  border: none;
+  padding: 6px 14px;
+  border-radius: var(--radius-full);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.driver-arrived-done {
+  color: var(--success);
+  font-weight: 700;
+  font-size: 0.82rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Badges */
+.busy-badge {
+  background-color: var(--danger-light);
+  color: var(--danger);
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.available-badge {
+  background-color: var(--success-light);
+  color: var(--success);
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  font-size: 0.72rem;
+  font-weight: 700;
+}

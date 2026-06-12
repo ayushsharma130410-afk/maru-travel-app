@@ -1,0 +1,8 @@
+{
+  "appId": "com.marutravel.app",
+  "appName": "Maru Travel",
+  "webDir": "dist",
+  "android": {
+    "useLegacyBridge": true
+  }
+}
