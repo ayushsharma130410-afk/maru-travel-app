@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getDatabase, ref, set, push, onValue, update, get, remove, serverTimestamp, onDisconnect } from 'firebase/database';
+import { getDatabase, ref, set, push, onValue, update, get, remove, serverTimestamp, onDisconnect, goOnline } from 'firebase/database';
 import { getAuth, signInWithPopup, GoogleAuthProvider, signOut } from 'firebase/auth';
 import { SEED_CITIES, SEED_HOTELS, SEED_ACTIVITIES, SEED_GUIDES, SEED_DRIVERS } from './cityData';
 
@@ -467,11 +467,30 @@ export const updateTourResource = async (tourCode, field, value) => {
   return { success: true };
 };export const updateTour = async (tourCode, tourData) => {
   if (isFirebaseAvailable) {
-    await set(ref(database, `tours/${tourCode}`), tourData);
+    await update(ref(database, `tours/${tourCode}`), tourData);
   } else {
     localDB.update('tours', (tours) => {
-      tours[tourCode] = tourData;
+      tours[tourCode] = { ...tours[tourCode], ...tourData };
       return tours;
+    });
+  }
+  return { success: true };
+};
+
+export const deleteTour = async (tourCode) => {
+  if (isFirebaseAvailable) {
+    await remove(ref(database, `tours/${tourCode}`));
+    await remove(ref(database, `locations/${tourCode}`));
+  } else {
+    localDB.update('tours', (tours) => {
+      const newTours = { ...tours };
+      delete newTours[tourCode];
+      return newTours;
+    });
+    localDB.update('locations', (locs) => {
+      const newLocs = { ...locs };
+      delete newLocs[tourCode];
+      return newLocs;
     });
   }
   return { success: true };
@@ -554,9 +573,12 @@ const buildLocationPayload = (location) => {
     simulated: location.simulated === true,
     trackingActive: true,
     offlineAt: null,
+    // clientWrittenAt is always a plain JS number — operator uses this
+    // to compute age so it never gets confused by a serverTimestamp object
     timestamp: location.time ?? now,
     clientWrittenAt: now,
-    updatedAt: isFirebaseAvailable ? serverTimestamp() : now,
+    updatedAt: now, // keep as number; Firebase serverTimestamp() returns an object
+                    // that can't be subtracted from Date.now() until it resolves
   };
 };
 
@@ -655,11 +677,21 @@ export const listenToLocations = (tourCode, callback) => {
 export const listenToAllLocations = (callback) => {
   if (isFirebaseAvailable) {
     const dbRef = ref(database, `locations`);
-    return onValue(dbRef, (snapshot) => {
+    // Force the connection to stay alive; fixes the "No Signal" bug
+    // when operator is on desktop browser and driver is on mobile APK.
+    goOnline(database);
+    // Keep-alive ping every 25 s so desktop browser doesn't throttle the
+    // WebSocket when the tab is in the background.
+    const keepAliveInterval = setInterval(() => { goOnline(database); }, 25000);
+    const unsub = onValue(dbRef, (snapshot) => {
       callback(snapshot.val() || {});
     }, () => {
       callback(localDB.get('locations') || {});
     });
+    return () => {
+      clearInterval(keepAliveInterval);
+      unsub();
+    };
   } else {
     const handleLocalUpdate = () => {
       callback(localDB.get('locations') || {});
@@ -667,6 +699,39 @@ export const listenToAllLocations = (callback) => {
     window.addEventListener('maru_db_change', handleLocalUpdate);
     handleLocalUpdate();
     return () => window.removeEventListener('maru_db_change', handleLocalUpdate);
+  }
+};
+
+// Heartbeat: driver calls this every 15 s even when GPS hasn't moved.
+// Keeps the operator's "last update" timestamp fresh so it never
+// shows NO SIGNAL when the driver is actually stationary.
+export const sendDriverHeartbeat = async (tourCode) => {
+  if (!isFirebaseAvailable || !tourCode) return;
+  try {
+    const trackingRef = ref(database, `locations/${tourCode}/driver`);
+    await update(trackingRef, {
+      trackingActive: true,
+      clientWrittenAt: Date.now(),
+      updatedAt: Date.now(),
+      offlineAt: null,
+    });
+  } catch (err) {
+    console.warn('Heartbeat failed:', err);
+  }
+};
+
+export const sendGuideHeartbeat = async (tourCode) => {
+  if (!isFirebaseAvailable || !tourCode) return;
+  try {
+    const trackingRef = ref(database, `locations/${tourCode}/guide`);
+    await update(trackingRef, {
+      trackingActive: true,
+      clientWrittenAt: Date.now(),
+      updatedAt: Date.now(),
+      offlineAt: null,
+    });
+  } catch (err) {
+    console.warn('Guide heartbeat failed:', err);
   }
 };
 

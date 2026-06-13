@@ -38,7 +38,7 @@ function AppContent() {
     case 'guide':
       return <GuidePortal tourCode={userSession.tourCode} onLogout={handleLogout} />;
     case 'driver':
-      return <DriverPortal tourCode={userSession.tourCode} onLogout={handleLogout} />;
+      return <DriverPortal key={userSession.driverMobile} driverMobile={userSession.driverMobile} onLogout={handleLogout} />;
     default:
       return <LoginPortal onLoginSuccess={handleLoginSuccess} />;
   }

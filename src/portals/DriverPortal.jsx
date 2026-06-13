@@ -1,14 +1,14 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useLanguage } from '../context/LanguageContext';
-import { listenToTour, updateDriverLocation, setDriverTrackingOffline, submitComplaint, markDayArrived, updateTourResource } from '../services/firebase';
+import { listenToAllTours, listenToTour, updateDriverLocation, setDriverTrackingOffline, submitComplaint, markDayArrived, updateTourResource, sendDriverHeartbeat } from '../services/firebase';
 import { useBackgroundLocation } from '../hooks/useBackgroundLocation';
 import { sendNotificationEmail } from '../services/email';
 import { Navigation, Car, AlertOctagon, Phone, User, Play, Square, Check, MapPin, Calendar, Compass, Shield, Clock, ChevronRight, CheckCircle2, X, AlertTriangle, Printer, RefreshCw, Volume2, AlertCircle, Fuel, CloudSun, CloudRain, CloudSnow, Sun, Cloud, Thermometer, Gauge, Timer, PhoneCall, Route, TrendingUp, Zap } from 'lucide-react';
 
-export default function DriverPortal({ tourCode: initialTourCode, onLogout }) {
+export default function DriverPortal({ driverMobile, onLogout }) {
   const { t, language } = useLanguage();
-  const [activeTourCode, setActiveTourCode] = useState(initialTourCode);
-  const [tourCodeInput, setTourCodeInput] = useState(initialTourCode);
+  const [activeTourCode, setActiveTourCode] = useState(null);
+  const [tourCodeInput, setTourCodeInput] = useState('');
   const [tourData, setTourData] = useState(null);
   const [loadError, setLoadError] = useState('');
 
@@ -134,18 +134,124 @@ export default function DriverPortal({ tourCode: initialTourCode, onLogout }) {
   // Current time ticker for duty hours
   const [currentTime, setCurrentTime] = useState(new Date());
 
-  // Subscribe to tour details
+  // Helper: Convert 12h AM/PM to 24h
+  const format24Hour = useCallback((time12h) => {
+    if (!time12h || time12h === 'TBD') return time12h;
+    const match = time12h.match(/(\d+):(\d+)\s*(AM|PM)/i);
+    if (!match) return time12h;
+    let [_, hours, mins, modifier] = match;
+    hours = parseInt(hours, 10);
+    if (modifier.toUpperCase() === 'PM' && hours < 12) hours += 12;
+    if (modifier.toUpperCase() === 'AM' && hours === 12) hours = 0;
+    return `${hours.toString().padStart(2, '0')}:${mins}`;
+  }, []);
+  
+  // Robust mobile matching ignoring country codes
+  const mobileMatches = useCallback((dbMobile, userMobileStr) => {
+    if (!dbMobile || !userMobileStr || userMobileStr.length < 4) return false;
+    const cleanDb = String(dbMobile).replace(/\D/g, '');
+    if (!cleanDb) return false;
+    return cleanDb === userMobileStr || cleanDb.endsWith(userMobileStr) || userMobileStr.endsWith(cleanDb);
+  }, []);
+
+  // Helper: check if a given mobile (cleaned digits) is an assigned driver in a tour
+  const isMobileAssignedToTour = useCallback((t, cleanMobile) => {
+    if (!t || !cleanMobile || cleanMobile.length < 4) return false; // Require at least 4 digits to prevent random short matches
+
+    // Main driver
+    if (mobileMatches(t.driverMobile, cleanMobile)) return true;
+    
+    // Transfer driver on any day
+    if (Array.isArray(t.itinerary)) {
+      return t.itinerary.some(day =>
+        day && day.interCityTransfer &&
+        (mobileMatches(day.transferDriverMobile, cleanMobile) || mobileMatches(day.destTransferDriverMobile, cleanMobile))
+      );
+    }
+    return false;
+  }, [mobileMatches]);
+
+  // Effect 1: Auto-detect active tour by scanning all tours and matching mobile
   useEffect(() => {
+    if (!driverMobile) return;
     setLoadError('');
-    const unsubscribe = listenToTour(activeTourCode, (data) => {
-      if (data) {
-        setTourData(data);
-      } else {
-        setLoadError(language === 'KO' ? '해당 투어 코드를 찾을 수 없습니다.' : 'Tour code not found in database.');
+    setTourData(null); // clear stale data immediately
+    const cleanMobile = String(driverMobile).replace(/\D/g, '');
+
+    const unsubscribe = listenToAllTours((allTours) => {
+      try {
+        const toursArray = Array.isArray(allTours) ? allTours : Object.values(allTours || {});
+
+        // Get today's date in IST (India Standard Time, +05:30)
+        const nowIST = new Date(Date.now() + (5.5 * 60 * 60 * 1000));
+        const today = nowIST.toISOString().split('T')[0];
+
+        // DEBUG: Log all tours and mobile numbers for diagnosis
+        console.log('[DriverPortal] Searching for mobile:', cleanMobile, '| Today (IST):', today);
+        console.log('[DriverPortal] All tours found:', toursArray.map(t => ({
+          code: t?.tourCode,
+          driverMobile: t?.driverMobile,
+          start: t?.startDate,
+          end: t?.endDate
+        })));
+
+        const assignedTours = toursArray.filter(t => {
+          if (!t || !t.tourCode) return false;
+
+          // Only exclude tours that have ALREADY ENDED (endDate is strictly before today)
+          // We intentionally allow future tours: the driver is already assigned and should see the tour
+          if (t.endDate && today > t.endDate) return false;
+
+          return isMobileAssignedToTour(t, cleanMobile);
+        });
+
+        if (assignedTours.length > 0) {
+          // Prefer the earliest active tour (sorted by startDate)
+          assignedTours.sort((a, b) => (a.startDate || '').localeCompare(b.startDate || ''));
+          const activeTour = assignedTours[0];
+
+          // For origin transfer driver: hide once their leg is marked done
+          let hideTour = false;
+          if (Array.isArray(activeTour.itinerary)) {
+            const startD = new Date(activeTour.startDate || today);
+            const todayD = new Date(today);
+            const todayIndex = Math.floor((todayD - startD) / (1000 * 3600 * 24));
+            if (todayIndex >= 0) {
+              const currentDay = activeTour.itinerary[todayIndex];
+              if (currentDay && currentDay.interCityTransfer) {
+                const isOrigin = mobileMatches(currentDay.transferDriverMobile, cleanMobile);
+                if (isOrigin && currentDay.transferDepartureDone) hideTour = true;
+              }
+            }
+          }
+
+          if (hideTour) {
+            setTourData(null);
+            setActiveTourCode(null);
+            setLoadError(language === 'KO' ? '이 투어의 1구간이 완료되었습니다.' : 'Leg 1 Completed. Handover successful.');
+          } else {
+            setTourData(activeTour);
+            setActiveTourCode(activeTour.tourCode);
+          }
+        } else {
+          // Only clear if we haven't manually loaded a tour
+          setTourData(prev => {
+            if (prev && prev._manualLoad) return prev; // keep manually loaded tour
+            return null;
+          });
+          setActiveTourCode(prev => {
+            if (prev) return prev; // keep manually set code
+            return null;
+          });
+          setLoadError(prev => prev || (language === 'KO' ? '배정된 투어가 없습니다.' : 'No active tours assigned to your mobile number. Please check with your operator.'));
+        }
+      } catch (err) {
+        console.error('DriverPortal tour fetch error:', err);
+        setLoadError('Error loading tour data. Please refresh.');
       }
     });
     return () => unsubscribe();
-  }, [activeTourCode, language]);
+  }, [driverMobile, language, isMobileAssignedToTour]);
 
   const handleDriverLocation = useCallback((location) => {
     setCoords({ lat: location.latitude, lng: location.longitude });
@@ -156,12 +262,29 @@ export default function DriverPortal({ tourCode: initialTourCode, onLogout }) {
 
   const handleDriverTrackingEnd = useCallback((code) => setDriverTrackingOffline(code), []);
 
+  const canBroadcastGps = useMemo(() => {
+    if (!tourData || !isBroadcasting) return false;
+    const cleanMobileCalc = String(driverMobile).replace(/\D/g, '');
+    const destTransferDayIndex = tourData.itinerary?.findIndex(day =>
+      day?.interCityTransfer && mobileMatches(day.destTransferDriverMobile, cleanMobileCalc)
+    ) ?? -1;
+
+    // If this is Leg 2 driver, ONLY broadcast if Leg 1 has completed departure
+    if (destTransferDayIndex !== -1) {
+      const transferSourceDay = tourData.itinerary[destTransferDayIndex];
+      if (!transferSourceDay.transferDepartureDone) {
+        return false; // Wait for Leg 1
+      }
+    }
+    return true;
+  }, [tourData, isBroadcasting, driverMobile, mobileMatches]);
+
   const { lastGpsAt } = useBackgroundLocation({
     tourCode: activeTourCode,
     tourData,
     onLocation: handleDriverLocation,
     onTrackingEnd: handleDriverTrackingEnd,
-    enabled: Boolean(tourData) && isBroadcasting,
+    enabled: canBroadcastGps,
   });
 
   const driverGpsLive = lastGpsAt && Date.now() - lastGpsAt < 45000;
@@ -180,6 +303,14 @@ export default function DriverPortal({ tourCode: initialTourCode, onLogout }) {
     const interval = setInterval(() => setCurrentTime(new Date()), 60000);
     return () => clearInterval(interval);
   }, []);
+
+  // Heartbeat: ping Firebase every 15 s while broadcasting so the
+  // operator panel never shows NO SIGNAL when driver is stationary.
+  useEffect(() => {
+    if (!isBroadcasting || !activeTourCode) return;
+    const hb = setInterval(() => { sendDriverHeartbeat(activeTourCode); }, 15000);
+    return () => clearInterval(hb);
+  }, [isBroadcasting, activeTourCode]);
 
   const toggleBroadcasting = () => {
     if (isBroadcasting) {
@@ -241,11 +372,34 @@ export default function DriverPortal({ tourCode: initialTourCode, onLogout }) {
     } catch (e) { }
   };
 
-  const handleLoadTour = (e) => {
-    e.preventDefault();
-    if (!tourCodeInput.trim()) return;
-    setActiveTourCode(tourCodeInput.trim().toUpperCase());
-  };
+  // Manual tour code load – fetch by code, verify mobile, then set tourData
+  const [isManualLoading, setIsManualLoading] = useState(false);
+  const handleLoadTour = useCallback((e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    const code = tourCodeInput.trim().toUpperCase();
+    if (!code) return;
+    setIsManualLoading(true);
+    setLoadError('');
+
+    const cleanMobile = String(driverMobile).replace(/\D/g, '');
+    const unsub = listenToTour(code, (fetchedTour) => {
+      unsub();
+      setIsManualLoading(false);
+      if (!fetchedTour) {
+        setLoadError(`Tour "${code}" not found. Please check the code.`);
+        return;
+      }
+      // Verify this driver is actually assigned to this tour
+      if (!isMobileAssignedToTour(fetchedTour, cleanMobile)) {
+        setLoadError(`Your mobile number is not assigned to tour "${code}". Please contact your operator.`);
+        return;
+      }
+      // All good — load the tour
+      setTourData({ ...fetchedTour, _manualLoad: true });
+      setActiveTourCode(code);
+      setLoadError('');
+    });
+  }, [tourCodeInput, driverMobile, isMobileAssignedToTour]);
 
   // Helper date conversions
   const yyyymmddToTourStr = (dateStr) => {
@@ -286,6 +440,16 @@ export default function DriverPortal({ tourCode: initialTourCode, onLogout }) {
   };
 
   const handleUpdateActivityStatus = async (dayIdx, actIdx, statusValue) => {
+    if (actIdx === 998) {
+      // Driver 1 completes drop-off
+      await updateTourResource(activeTourCode, `itinerary/${dayIdx}/transferDepartureDone`, statusValue === 'completed');
+      return;
+    }
+    if (actIdx === 999) {
+      // Driver 2 completes pick-up
+      await updateTourResource(activeTourCode, `itinerary/${dayIdx}/transferArrivalDone`, statusValue === 'completed');
+      return;
+    }
     await updateTourResource(activeTourCode, `itinerary/${dayIdx}/activitiesList/${actIdx}/status`, statusValue);
   };
 
@@ -293,20 +457,38 @@ export default function DriverPortal({ tourCode: initialTourCode, onLogout }) {
     return (
       <div style={styles.loaderWrap}>
         <img src="/maru_logo_transparent.png" alt="Maru Travel" style={{ width: '120px', marginBottom: '16px', opacity: 0.9 }} />
-        <div style={styles.spinner} />
-        <p style={{ color: '#073549', fontWeight: '600' }}>Loading your itinerary...</p>
+        {isManualLoading ? (
+          <>
+            <div style={styles.spinner} />
+            <p style={{ color: '#073549', fontWeight: '600' }}>Verifying tour code...</p>
+          </>
+        ) : !loadError ? (
+          <>
+            <div style={styles.spinner} />
+            <p style={{ color: '#073549', fontWeight: '600' }}>Searching tours for {driverMobile}...</p>
+          </>
+        ) : null}
         {loadError && (
-          <div style={{ marginTop: '20px', padding: '12px', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', borderRadius: '8px', fontSize: '0.88rem' }}>
-            {loadError}
-            <div style={{ marginTop: '8px' }}>
-              <input 
-                type="text" 
-                value={tourCodeInput} 
-                onChange={(e) => setTourCodeInput(e.target.value)} 
-                style={{ padding: '6px', border: '1px solid #ccc', borderRadius: '4px', marginRight: '6px', textTransform: 'uppercase' }}
+          <div style={{ marginTop: '20px', padding: '16px', background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239,68,68,0.3)', color: '#ef4444', borderRadius: '10px', fontSize: '0.88rem', maxWidth: '340px', textAlign: 'center' }}>
+            <p style={{ marginBottom: '12px', fontWeight: '600' }}>{loadError}</p>
+            <p style={{ fontSize: '0.78rem', color: '#6b7280', marginBottom: '12px' }}>
+              If your operator has assigned you a tour code, enter it below:
+            </p>
+            <form onSubmit={handleLoadTour} style={{ display: 'flex', gap: '6px' }}>
+              <input
+                type="text"
+                value={tourCodeInput}
+                onChange={(e) => setTourCodeInput(e.target.value.toUpperCase())}
+                placeholder="e.g. MR-2026-ABC"
+                style={{ flex: 1, padding: '8px', border: '1px solid #ccc', borderRadius: '6px', textTransform: 'uppercase', fontSize: '0.85rem' }}
               />
-              <button onClick={handleLoadTour} style={{ padding: '6px 12px', background: '#1a8a7d', color: 'white', border: 'none', borderRadius: '4px' }}>Load</button>
-            </div>
+              <button type="submit" disabled={isManualLoading} style={{ padding: '8px 14px', background: '#1a8a7d', color: 'white', border: 'none', borderRadius: '6px', fontWeight: '700', cursor: 'pointer' }}>
+                {isManualLoading ? '...' : 'Load'}
+              </button>
+            </form>
+            <button onClick={onLogout} style={{ marginTop: '12px', background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer', fontSize: '0.78rem', textDecoration: 'underline' }}>
+              ← Back to Login
+            </button>
           </div>
         )}
       </div>
@@ -328,8 +510,101 @@ export default function DriverPortal({ tourCode: initialTourCode, onLogout }) {
   const realActiveDayIdx = hasScheduledDay ? activeDayIndex : 0;
   const currentDay = tourData.itinerary?.[realActiveDayIdx] || {};
 
-  // Find upcoming activity that is not completed
-  const nextActivity = currentDay.activitiesList?.find(act => act.status !== 'completed') || currentDay.activitiesList?.[0] || {};
+  const cleanMobileCalc = String(driverMobile).replace(/\D/g, '');
+
+  // ── ROBUST ROLE DETECTION ──────────────────────────────────────────────────
+  // Don't rely on currentDay alone. Scan ALL itinerary days to find the driver's role.
+  // This is immune to date format mismatches and fallback day index issues.
+  
+  // Find the day where this driver is the Origin (Leg 1) transfer driver
+  const originTransferDayIndex = tourData.itinerary?.findIndex(day =>
+    day?.interCityTransfer && mobileMatches(day.transferDriverMobile, cleanMobileCalc)
+  ) ?? -1;
+
+  // Find the day where this driver is the Destination (Leg 2) pick-up driver
+  const destTransferDayIndex = tourData.itinerary?.findIndex(day =>
+    day?.interCityTransfer && mobileMatches(day.destTransferDriverMobile, cleanMobileCalc)
+  ) ?? -1;
+
+  const isOriginTransferCalc = originTransferDayIndex !== -1;
+  const isDestTransferCalc = destTransferDayIndex !== -1;
+
+  // The source day for transfer context
+  const transferSourceDay = isDestTransferCalc
+    ? tourData.itinerary[destTransferDayIndex]
+    : isOriginTransferCalc
+      ? tourData.itinerary[originTransferDayIndex]
+      : currentDay;
+
+  const isMainDriver = !isOriginTransferCalc && !isDestTransferCalc && mobileMatches(tourData.driverMobile, cleanMobileCalc);
+
+  // Debug log
+  console.log('[DriverPortal] Role detection:', {
+    cleanMobileCalc,
+    isOriginTransferCalc, originTransferDayIndex,
+    isDestTransferCalc, destTransferDayIndex,
+    isMainDriver,
+    allDays: tourData.itinerary?.map(d => ({ day: d.day, city: d.city, interCity: d.interCityTransfer, leg1: d.transferDriverMobile, leg2: d.destTransferDriverMobile }))
+  });
+
+
+  // If driver 2 logs in, they only care about Destination activities (e.g. Airport Pickup).
+  // If driver 1 logs in, they only care about Origin activities (e.g. Hotel Dropoff).
+  let rawActivities = (currentDay.activitiesList || []).map((act, idx) => ({ ...act, originalIndex: idx }));
+  
+  // Inject explicit InterCity transfer tasks using transferSourceDay (handles both same-day and next-day arrival)
+  const transferActive = isOriginTransferCalc || isDestTransferCalc;
+  if (transferActive) {
+    const transportMode = transferSourceDay.transport === 'By Flight' ? 'Airport ✈️' : 'Railway Station 🚆';
+    const travelDetail = transferSourceDay.transport === 'By Flight' ? transferSourceDay.flightNo : transferSourceDay.trainNo;
+    const detailStr = travelDetail ? `(${travelDetail})` : '';
+
+    if (isOriginTransferCalc) {
+      // Driver 1: Drop-off task at end of their shift — uses current day data
+      rawActivities.push({
+        isSyntheticTransfer: true,
+        originalIndex: 998,
+        time: 'TBD',
+        title: `Drop-off at ${currentDay.transferOrigin || 'Origin'} ${transportMode}`,
+        desc: `Drop off clients for their onward journey ${detailStr}.`,
+        cityTag: 'Origin',
+        status: currentDay.transferDepartureDone ? 'completed' : 'pending'
+      });
+    }
+
+    if (isDestTransferCalc) {
+      // Driver 2: Pick-up task at the START — uses transferSourceDay (which may be previous day)
+      rawActivities.unshift({
+        isSyntheticTransfer: true,
+        originalIndex: 999,
+        time: 'TBD',
+        title: `Pick-up from ${transferSourceDay.transferDestination || currentDay.city || 'Destination'} ${transportMode}`,
+        desc: `Pick up clients arriving via ${transferSourceDay.transport || 'Transfer'} ${detailStr}. Transfer from ${transferSourceDay.transferOrigin || '—'} → ${transferSourceDay.transferDestination || currentDay.city || '—'}.`,
+        cityTag: 'Destination',
+        status: transferSourceDay.transferArrivalDone ? 'completed' : 'pending'
+      });
+    }
+  }
+
+  const driverActivitiesWithIndex = rawActivities.filter(act => {
+    if (isOriginTransferCalc) {
+      return act.cityTag !== 'Destination'; // Show Origin and untagged (assumed origin)
+    }
+    if (isDestTransferCalc) {
+      // For DEEP: show synthetic pickup task + any Destination-tagged activities in current day
+      return act.cityTag === 'Destination' || act.isSyntheticTransfer;
+    }
+    return true; // Main driver sees all
+  });
+
+  const nextActivity = driverActivitiesWithIndex.find(act => act.status !== 'completed') || driverActivitiesWithIndex[0] || {};
+  
+  // Dummy data for visual completion
+  const driverDetails = {
+    name: tourData.driverName || 'Not Assigned',
+    vehicle: tourData.vehicleType || 'Sedan',
+    vehicleNo: tourData.vehicleNo || 'XX-XXXX'
+  };
 
   // Calculate how many days completed
   const totalDays = tourData.itinerary?.length || 1;
@@ -346,7 +621,7 @@ export default function DriverPortal({ tourCode: initialTourCode, onLogout }) {
   const estFuel = getEstimatedFuel(distToNext);
 
   // Today's total route distance (sum of intra-city activity travel, rough estimate ~40km local)
-  const todayLocalDist = currentDay.activitiesList?.length ? currentDay.activitiesList.length * 12 : 30;
+  const todayLocalDist = driverActivitiesWithIndex.length ? driverActivitiesWithIndex.length * 12 : 30;
   const todayTotalDist = todayLocalDist + (distToNext > 0 ? distToNext : 0);
   const todayTotalFuel = getEstimatedFuel(todayTotalDist);
 
@@ -356,7 +631,7 @@ export default function DriverPortal({ tourCode: initialTourCode, onLogout }) {
   const weatherColor = getWeatherColor(cityWeather.condition);
 
   // Duty hours calculation
-  const firstActivityTime = currentDay.activitiesList?.[0]?.time || '09:00 AM';
+  const firstActivityTime = driverActivitiesWithIndex[0]?.time || '09:00 AM';
   const getDutyHours = () => {
     try {
       const now = currentTime;
@@ -596,14 +871,31 @@ export default function DriverPortal({ tourCode: initialTourCode, onLogout }) {
 
   return (
     <div style={styles.container}>
+      {/* Role Banner for Clarity */}
+      {(isOriginTransferCalc || isDestTransferCalc) && (
+        <div style={{
+          backgroundColor: isDestTransferCalc ? '#f59e0b' : '#3b82f6',
+          color: 'white',
+          padding: '10px 16px',
+          textAlign: 'center',
+          fontSize: '0.9rem',
+          fontWeight: '600',
+          boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+        }}>
+          {isDestTransferCalc ? '🚗 Driver 2: Destination Pick-up Duty' : '🚗 Driver 1: Origin Drop-off Duty'}
+        </div>
+      )}
+
       {/* Top Header Bar */}
       <header style={styles.header}>
-        <div style={styles.headerLeft}>
-          <img src="/maru_logo_transparent.png" alt="Maru Travel" style={styles.headerLogo} />
+        <div style={styles.headerTop}>
           <div>
             <h1 style={styles.headerTitle}>Driver Panel</h1>
-            <span style={styles.headerSubtitle}>{tourData.driverName}</span>
+            <span style={styles.headerSubtitle}>
+              {isDestTransferCalc ? transferSourceDay.destTransferDriverName : isOriginTransferCalc ? transferSourceDay.transferDriverName : tourData.driverName}
+            </span>
           </div>
+          <img src="/maru_logo_transparent.png" alt="Maru Travel" style={styles.headerLogo} />
         </div>
         <div style={styles.headerRight}>
           <div style={styles.gpsBadge}>
@@ -652,6 +944,32 @@ export default function DriverPortal({ tourCode: initialTourCode, onLogout }) {
               <span style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: '600' }}>
                 {totalDays - completedDays} {language === 'KO' ? '일 남음' : 'days remaining'}
               </span>
+            </div>
+          </div>
+        )}
+
+        {/* Emergency Instructions Banner */}
+        {tourData.emergencyInstructions && (
+          <div style={{
+            padding: '16px',
+            background: '#FEF2F2',
+            borderLeft: '4px solid #EF4444',
+            borderRadius: '12px',
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: '12px',
+            boxShadow: '0 4px 6px rgba(239,68,68,0.1)',
+            marginBottom: '16px',
+            animation: 'slideDownFadeIn 0.3s ease-out'
+          }}>
+            <span style={{ fontSize: '1.5rem' }}>🚨</span>
+            <div style={{ flex: 1 }}>
+              <strong style={{ display: 'block', fontSize: '0.85rem', color: '#991B1B', textTransform: 'uppercase', marginBottom: '4px', fontWeight: '800' }}>
+                {language === 'KO' ? '긴급 업데이트' : 'URGENT INSTRUCTIONS'}
+              </strong>
+              <p style={{ margin: 0, fontSize: '0.9rem', color: '#7F1D1D', fontWeight: '700', lineHeight: '1.4' }}>
+                {tourData.emergencyInstructions}
+              </p>
             </div>
           </div>
         )}
@@ -954,7 +1272,8 @@ export default function DriverPortal({ tourCode: initialTourCode, onLogout }) {
               </div>
 
               <div style={styles.timelineContainer}>
-                {currentDay.activitiesList?.map((act, idx) => {
+                {driverActivitiesWithIndex.map((act, arrIdx) => {
+                  const idx = act.originalIndex;
                   const currentStatus = act.status || 'scheduled';
                   const pickupLoc = getPickupLocationName(act.title, idx, currentDay.hotelName, currentDay.localRestaurant);
 
@@ -967,7 +1286,7 @@ export default function DriverPortal({ tourCode: initialTourCode, onLogout }) {
                           width: '12px',
                           height: '12px'
                         }} />
-                        {idx < (currentDay.activitiesList.length - 1) && (
+                        {arrIdx < (driverActivitiesWithIndex.length - 1) && (
                           <div style={styles.timelineLine} />
                         )}
                       </div>
@@ -978,7 +1297,7 @@ export default function DriverPortal({ tourCode: initialTourCode, onLogout }) {
                           borderLeft: currentStatus === 'completed' ? '3px solid #22c55e' : currentStatus === 'enroute' ? '3px solid #f59e0b' : '1px solid #e2e8f0',
                         }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                            <span style={styles.timelineTime}>{act.time}</span>
+                            <span style={styles.timelineTime}>{format24Hour(act.time)}</span>
                             
                             {/* Live Status Badge */}
                             <span style={{

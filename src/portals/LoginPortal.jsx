@@ -11,6 +11,7 @@ export default function LoginPortal({ onLoginSuccess }) {
   const [isLoading, setIsLoading] = useState(false);
   const [operatorEmail, setOperatorEmail] = useState('');
   const [operatorPassword, setOperatorPassword] = useState('');
+  const [driverMobile, setDriverMobile] = useState('');
 
   const handleOperatorGoogleLogin = async () => {
     setIsLoading(true);
@@ -41,6 +42,22 @@ export default function LoginPortal({ onLoginSuccess }) {
           setErrorMsg(language === 'KO' ? '이메일 또는 비밀번호가 올바르지 않습니다.' : 'Invalid Email or Password. Please try again.');
         }
       }, 600);
+      return;
+    }
+
+    if (activePortal === 'driver') {
+      if (!driverMobile.trim()) return;
+      setIsLoading(true);
+      setErrorMsg('');
+      
+      // Simulate quick check or just pass directly to portal
+      setTimeout(() => {
+        setIsLoading(false);
+        onLoginSuccess({
+          role: 'driver',
+          driverMobile: driverMobile.trim()
+        });
+      }, 500);
       return;
     }
 
@@ -185,27 +202,28 @@ export default function LoginPortal({ onLoginSuccess }) {
           })}
         </div>
 
+
         <form onSubmit={handleTourAccess} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          {activePortal !== 'operator' ? (
+          {activePortal === 'driver' ? (
             <div className="login-form-group slide-up-anim">
-              <label className="login-label" htmlFor="tourCode">
-                {t('enterTourCode')}
+              <label className="login-label" htmlFor="driverMobile">
+                {language === 'KO' ? '휴대폰 번호' : 'Driver Mobile Number'}
               </label>
               <div className="login-input-wrap">
                 <Key className="login-icon-prefix" size={18} />
                 <input
-                  id="tourCode"
+                  id="driverMobile"
                   className="login-input"
-                  type="text"
-                  placeholder={t('tourCodePlaceholder')}
-                  value={tourCode}
-                  onChange={(e) => setTourCode(e.target.value)}
+                  type="tel"
+                  placeholder="e.g. +91 98765 43210"
+                  value={driverMobile}
+                  onChange={(e) => setDriverMobile(e.target.value)}
                   disabled={isLoading}
-                  autoComplete="off"
+                  autoComplete="tel"
                 />
               </div>
             </div>
-          ) : (
+          ) : activePortal === 'operator' ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }} className="slide-up-anim">
               <div className="login-form-group">
                 <label className="login-label" htmlFor="operatorEmail">
@@ -245,6 +263,25 @@ export default function LoginPortal({ onLoginSuccess }) {
                     required
                   />
                 </div>
+              </div>
+            </div>
+          ) : (
+            <div className="login-form-group slide-up-anim">
+              <label className="login-label" htmlFor="tourCode">
+                {t('enterTourCode')}
+              </label>
+              <div className="login-input-wrap">
+                <Key className="login-icon-prefix" size={18} />
+                <input
+                  id="tourCode"
+                  className="login-input"
+                  type="text"
+                  placeholder={t('tourCodePlaceholder')}
+                  value={tourCode}
+                  onChange={(e) => setTourCode(e.target.value)}
+                  disabled={isLoading}
+                  autoComplete="off"
+                />
               </div>
             </div>
           )}

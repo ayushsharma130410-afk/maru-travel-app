@@ -1,5 +1,5 @@
-export const GPS_LIVE_MS = 45000;
-export const GPS_STALE_MS = 300000;
+export const GPS_LIVE_MS = 90000;   // 90 s — generous for mobile networks
+export const GPS_STALE_MS = 300000; // 5 min
 
 export const CITY_COORDS = {
   'New Delhi': { lat: 28.6139, lng: 77.2090 },
@@ -27,9 +27,12 @@ export function getCityCoords(cityName) {
 
 export function getLocationTimestampMs(loc) {
   if (!loc) return 0;
-  const ts = loc.updatedAt ?? loc.clientWrittenAt ?? loc.timestamp ?? loc.offlineAt;
+  // Try every possible timestamp field the driver/heartbeat writes
+  const ts = loc.clientWrittenAt ?? loc.updatedAt ?? loc.timestamp ?? loc.offlineAt;
   if (!ts) return 0;
   if (typeof ts === 'number') return ts;
+  // Firebase serverTimestamp resolves to a number, but handle edge cases
+  if (typeof ts === 'object' && ts['.sv']) return Date.now(); // unresolved server timestamp → treat as "now"
   const parsed = new Date(ts).getTime();
   return Number.isNaN(parsed) ? 0 : parsed;
 }
@@ -44,6 +47,7 @@ export function normalizeTrackingLocation(raw) {
     lng: Number(lng),
     timestamp: raw.timestamp,
     updatedAt: raw.updatedAt,
+    clientWrittenAt: raw.clientWrittenAt,   // ← was missing! critical for age calc
     offlineAt: raw.offlineAt,
     trackingActive: raw.trackingActive,
     accuracy: raw.accuracy,
@@ -66,7 +70,26 @@ export function getGpsStatus(loc, roleLabel = 'Driver') {
     };
   }
 
+  // If tracking was explicitly stopped (driver pressed "Stop Broadcasting"),
+  // show OFFLINE — but ONLY if the location data is also old enough to confirm.
+  // This prevents the race condition where onDisconnect fires briefly during
+  // a mobile network blip while the driver is still actually broadcasting.
   if (loc.trackingActive === false) {
+    const tsMs = getLocationTimestampMs(loc);
+    const ageMs = tsMs > 0 ? Date.now() - tsMs : 0;
+    // If the data is less than 30 seconds old AND coordinates exist,
+    // the driver might have just reconnected — show STALE, not OFFLINE
+    if (ageMs >= 0 && ageMs < 30000 && loc.lat && loc.lng) {
+      return {
+        status: 'stale',
+        detail: `${roleLabel} reconnecting...`,
+        dotColor: '#f59e0b',
+        pulse: true,
+        badgeBg: '#fef3c7',
+        badgeColor: '#b45309',
+        badgeText: 'RECONNECTING',
+      };
+    }
     return {
       status: 'offline',
       detail: `${roleLabel} GPS stopped — app closed or broadcast ended`,
@@ -78,8 +101,13 @@ export function getGpsStatus(loc, roleLabel = 'Driver') {
     };
   }
 
-  const ageMs = Date.now() - getLocationTimestampMs(loc);
-  const ageSec = ageMs > 0 ? Math.floor(ageMs / 1000) : Infinity;
+  const tsMs = getLocationTimestampMs(loc);
+  const ageMs = tsMs > 0 ? Date.now() - tsMs : 0;
+
+  // ★ FIX: If driver's phone clock is ahead of operator's laptop clock,
+  //   ageMs is negative. That means "future timestamp" = the data JUST arrived.
+  //   Clamp to 0 so it correctly shows LIVE instead of OFFLINE.
+  const ageSec = Math.max(0, Math.floor(ageMs / 1000));
 
   if (ageSec < GPS_LIVE_MS / 1000) {
     return {

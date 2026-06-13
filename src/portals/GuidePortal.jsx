@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useLanguage } from '../context/LanguageContext';
-import { listenToTour, listenToCities, updateTourResource, updateGuideLocation, setGuideTrackingOffline } from '../services/firebase';
+import { listenToTour, listenToCities, updateTourResource, updateGuideLocation, setGuideTrackingOffline, sendGuideHeartbeat } from '../services/firebase';
 import { useBackgroundLocation } from '../hooks/useBackgroundLocation';
 import { Award, Phone, Calendar, MapPin, Navigation, User, Car, Info, ShieldAlert, Printer, RefreshCw, Send, CheckSquare, Square, Volume2, AlertCircle, CloudSun, CloudRain, Sun, Cloud, Snowflake, Users, PhoneCall, BarChart3 } from 'lucide-react';
 
@@ -62,6 +62,14 @@ export default function GuidePortal({ tourCode: initialTourCode, onLogout }) {
     onTrackingEnd: handleGuideTrackingEnd,
     enabled: Boolean(tourData),
   });
+
+  // Heartbeat: ping Firebase every 15 s while tracking is active so the
+  // operator panel never shows NO SIGNAL when guide is stationary.
+  useEffect(() => {
+    if (!tourData || !activeTourCode) return;
+    const hb = setInterval(() => { sendGuideHeartbeat(activeTourCode); }, 15000);
+    return () => clearInterval(hb);
+  }, [tourData, activeTourCode]);
 
   // Subscribe to cities info
   useEffect(() => {
@@ -571,6 +579,32 @@ export default function GuidePortal({ tourCode: initialTourCode, onLogout }) {
             <span style={{ fontSize: '0.62rem', color: '#6b7280', fontWeight: '600' }}>{yyyymmddToTourStr(tourEndYYYYMMDD)}</span>
           </div>
         </div>
+
+        {/* Emergency Instructions Banner */}
+        {tourData.emergencyInstructions && (
+          <div style={{
+            padding: '16px',
+            background: '#FEF2F2',
+            borderLeft: '4px solid #EF4444',
+            borderRadius: '12px',
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: '12px',
+            boxShadow: '0 4px 6px rgba(239,68,68,0.1)',
+            marginBottom: '16px',
+            animation: 'slideDownFadeIn 0.3s ease-out'
+          }}>
+            <span style={{ fontSize: '1.5rem' }}>🚨</span>
+            <div style={{ flex: 1 }}>
+              <strong style={{ display: 'block', fontSize: '0.85rem', color: '#991B1B', textTransform: 'uppercase', marginBottom: '4px', fontWeight: '800' }}>
+                {language === 'KO' ? '긴급 업데이트' : 'URGENT INSTRUCTIONS'}
+              </strong>
+              <p style={{ margin: 0, fontSize: '0.9rem', color: '#7F1D1D', fontWeight: '700', lineHeight: '1.4' }}>
+                {tourData.emergencyInstructions}
+              </p>
+            </div>
+          </div>
+        )}
         
         {/* Dynamic Guide Profile Card */}
         <div className="glass-panel" style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '14px', background: '#073549', color: 'white', borderRadius: '16px', border: 'none', boxShadow: 'var(--shadow-md)', marginBottom: '16px', position: 'relative', overflow: 'hidden' }}>

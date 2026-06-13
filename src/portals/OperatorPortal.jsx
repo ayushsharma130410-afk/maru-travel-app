@@ -6,7 +6,7 @@ import {
   listenToActivities, addActivity, deleteActivity,
   listenToGuides, addGuide, deleteGuide, getGuideBusyStatus,
   listenToDrivers, addDriver, deleteDriver,
-  publishTour, listenToAllTours, updateTourResource, updateTour,
+  publishTour, listenToAllTours, updateTourResource, updateTour, deleteTour,
   listenToComplaints, signOutGoogle, listenToAllLocations,
   listenToRestaurants, addRestaurant, deleteRestaurant
 } from '../services/firebase';
@@ -14,7 +14,7 @@ import { normalizeTrackingLocation, getGpsStatus, formatLocationTime } from '../
 import LeafletMap from '../components/LeafletMap';
 import { 
   BarChart2, MapPin, Compass, Hotel, Award, Car, Clipboard, 
-  Plus, Trash2, Calendar, Users, Phone, Shield, Star, Check, Globe, HelpCircle, Printer, UtensilsCrossed, Edit3, Navigation
+  Plus, Trash2, Calendar, Users, Phone, Shield, Star, Check, CheckCircle2, Globe, HelpCircle, Printer, UtensilsCrossed, Edit3, Navigation
 } from 'lucide-react';
 
 const MEAL_PLAN_OPTIONS = [
@@ -54,6 +54,8 @@ export default function OperatorPortal({ onLogout }) {
   // UI State
   const [showAddForm, setShowAddForm] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [dashboardFilterCity, setDashboardFilterCity] = useState('');
+  const [dashboardFilterDutyType, setDashboardFilterDutyType] = useState('');
   const [expandedTourCode, setExpandedTourCode] = useState(null);
   const [printTour, setPrintTour] = useState(null);
   const [editingTour, setEditingTour] = useState(null);
@@ -77,6 +79,21 @@ export default function OperatorPortal({ onLogout }) {
   const [rangeCityFilter, setRangeCityFilter] = useState('');
   // Master itinerary selection
   const [selectedMasterItinerary, setSelectedMasterItinerary] = useState('');
+
+  // Instant Shift State
+  const [shiftModalOpen, setShiftModalOpen] = useState(false);
+  const [shiftTour, setShiftTour] = useState(null);
+  const [shiftDayIndex, setShiftDayIndex] = useState(null);
+  const [shiftFlightDetails, setShiftFlightDetails] = useState('');
+  const [shiftMode, setShiftMode] = useState('Train'); // 'Train', 'Car', 'Flight'
+  const [shiftTrainNo, setShiftTrainNo] = useState('');
+  const [shiftDriver, setShiftDriver] = useState('');
+  const [shiftFlightNo, setShiftFlightNo] = useState('');
+  const [shiftActionWait, setShiftActionWait] = useState(false);
+  const [shiftActionDismiss, setShiftActionDismiss] = useState(false);
+  const [shiftActionRoute, setShiftActionRoute] = useState(false);
+  const [flightStatusCache, setFlightStatusCache] = useState({});
+  const [trackingFlight, setTrackingFlight] = useState(null);
 
   // New Entity Forms
   const [newCity, setNewCity] = useState({
@@ -380,6 +397,99 @@ export default function OperatorPortal({ onLogout }) {
     setShowAddForm(false);
   };
 
+  const handleDeleteTourItem = async (tourCode) => {
+    await deleteTour(tourCode);
+  };
+
+  const trackFlight = async (flightNo) => {
+    if (!flightNo) return;
+    setTrackingFlight(flightNo);
+    // Simulate API call (Free client-side mock)
+    setTimeout(() => {
+      // Deterministic mock based on flight number string length and char codes
+      const hash = flightNo.split('').reduce((a, b) => { a = ((a << 5) - a) + b.charCodeAt(0); return a & a }, 0);
+      const isDelayed = Math.abs(hash) % 3 === 0;
+      const isCanceled = Math.abs(hash) % 7 === 0;
+      
+      let statusText = '✅ ON TIME';
+      let statusColor = '#10B981';
+      if (isCanceled) {
+         statusText = '❌ CANCELED';
+         statusColor = '#EF4444';
+      } else if (isDelayed) {
+         statusText = `⚠️ DELAYED by ${Math.max(1, Math.abs(hash) % 4)} hours`;
+         statusColor = '#F59E0B';
+      }
+
+      setFlightStatusCache(prev => ({
+        ...prev,
+        [flightNo]: { text: statusText, color: statusColor, time: new Date().toLocaleTimeString() }
+      }));
+      setTrackingFlight(null);
+    }, 1500);
+  };
+
+  const openInstantShift = (tour, dayIndex, flightNo) => {
+    setShiftTour(tour);
+    setShiftDayIndex(dayIndex);
+    setShiftFlightDetails(flightNo || 'Unknown Transport');
+    setShiftMode('Train');
+    setShiftTrainNo('');
+    setShiftDriver(tour.driverName || '');
+    setShiftFlightNo('');
+    setShiftActionWait(false);
+    setShiftActionDismiss(false);
+    setShiftActionRoute(false);
+    setShiftModalOpen(true);
+    if (flightNo && !flightStatusCache[flightNo]) {
+      trackFlight(flightNo);
+    }
+  };
+
+  const handleInstantShiftSubmit = async () => {
+    if (!shiftTour || shiftDayIndex === null) return;
+    
+    const updatedTour = JSON.parse(JSON.stringify(shiftTour));
+    const targetDay = updatedTour.itinerary[shiftDayIndex];
+    
+    // Update Transport
+    if (shiftMode === 'Train') {
+      targetDay.transport = 'By Train';
+      targetDay.trainNo = shiftTrainNo;
+      targetDay.flightNo = '';
+    } else if (shiftMode === 'Car') {
+      targetDay.transport = 'By Surface';
+      targetDay.flightNo = '';
+      targetDay.trainNo = '';
+      updatedTour.driverName = shiftDriver; // Assign new driver
+    } else if (shiftMode === 'Flight') {
+      targetDay.transport = 'By Flight';
+      targetDay.flightNo = shiftFlightNo;
+      targetDay.trainNo = '';
+    }
+    
+    // Add Emergency Instructions
+    let instructions = [];
+    if (shiftActionWait) instructions.push("Wait at airport/station.");
+    if (shiftActionDismiss) instructions.push("You are dismissed from current duty.");
+    if (shiftActionRoute) instructions.push("Route to new station/airport immediately.");
+    
+    updatedTour.emergencyInstructions = instructions.length > 0 ? instructions.join(' | ') : null;
+    
+    // Versioning
+    const currentVersion = parseFloat(updatedTour.version || '1.0');
+    updatedTour.version = (currentVersion + 0.1).toFixed(1);
+    updatedTour.updateReason = `Updated Due to Transport Shift (${shiftMode})`;
+    
+    await updateTour(updatedTour.tourCode, updatedTour);
+    
+    // Close modal
+    setShiftModalOpen(false);
+    
+    // Open Print Preview automatically with new version
+    setPrintTour(updatedTour);
+  };
+
 
   const parseItineraryText = (text, dayData) => {
     const cleanedText = (text || '').replace(/\s+/g, ' ').trim();
@@ -669,42 +779,41 @@ export default function OperatorPortal({ onLogout }) {
   const MASTER_ITINERARIES = [
     {
       id: 'golden-triangle-varanasi',
-      name: 'HJ classical',
+      name: 'MT HJ GT TOUR',
       days: [
-        { city: 'New Delhi', activities: 'Arrive at Indira Gandhi International Airport. Welcome to India! You will be met at the airport by representative. Transfer to hotel.\nOvernight stay at hotel.', transport: 'By Flight', mealPlan: 'No Meal', hotelName: '' },
-        { city: 'New Delhi', activities: 'After breakfast proceed to full day Sightseeing you will visit Presidential Palace & Parliament Building (Exterior), Akshardham Temple, India Gate, Gandhi Smriti and Qutub Minar later back to hotel, Overnight Hotel.', transport: 'By Surface', mealPlan: 'Breakfast (CP)', hotelName: '' },
-        { city: 'Varanasi', activities: "After breakfast transfer to Delhi Airport for board Flight. On arrival transfer to Hotel for Lunch and check in at hotel, In Evening Sightseeing 'Aarti Puja' with Ganges sunset - Rickshaw ride Back to hotel, Overnight at Hotel.", transport: 'By Flight', mealPlan: 'Breakfast (CP)', hotelName: '' },
-        { city: 'Agra', activities: 'Early Sunrise at Ghat and back to hotel after breakfast transfer to Varanasi Airport for board Flight. Upon arrival Driver to Agra and upon arrival check in hotel and Overnight at Hotel.', transport: 'By Flight', mealPlan: 'Breakfast (CP)', hotelName: '' },
-        { city: 'Agra', activities: 'After Breakfast - F/D sightseeing Taj Mahal & Agra Fort. Lunch & Dinner & Overnight at Hotel.', transport: 'By Surface', mealPlan: 'Breakfast & Dinner (MAP)', hotelName: '' },
-        { city: 'Agra', activities: 'After Breakfast - sightseeing later day at leisure & Overnight at Hotel.', transport: 'By Surface', mealPlan: 'Breakfast (CP)', hotelName: '' },
-        { city: 'Jaipur', activities: 'This morning, you will be drive Agra to Jaipur Enroute sightseeing Fatehpur Sikri on the way. Fatehpur Sikri built by Emperor Akbar in the 16th century holds exceptional testimony to Mughal civilization. You will visit the Jama Masjid, Tomb of Salim Chishti, Panch Mahal and Buland Darwaza. After the visit, you will be driven to Jaipur - the pink city. Overnight is in Jaipur.', transport: 'By Surface', mealPlan: 'Breakfast (CP)', hotelName: '' },
-        { city: 'Jaipur', activities: 'The morning journey starts from Amer Fort. This magnificent fort was constructed in red sand-stone and marble by Raja Man Singh. You will visit Diwan-e-Aam, Diwan-e-Khas, Sheesh Mahal and Sukh Niwas. Then visit Maharaja City Palace, Jantar Mantar observatory. Drive past Hawa Mahal. Jaipur is famous for clothes, carpets, precious stones and jewellery. Overnight is in Jaipur.', transport: 'By Surface', mealPlan: 'Breakfast (CP)', hotelName: '' },
-        { city: 'New Delhi', activities: 'After breakfast drive to Delhi, upon arrival transfer to the International airport to connect departure flight.', transport: 'By Surface', mealPlan: 'Breakfast (CP)', hotelName: '' },
+        { city: 'New Delhi', activities: 'ICN to DEL by KE.18:30Hrs Dinner & Overnight at Hotel.', transport: 'By Flight', mealPlan: 'Dinner Only', hotelName: '' },
+        { city: 'New Delhi', activities: 'New DEL SS(Akshardham, President palace, Parliament house) Tandoori Lunch at Nineteenth Hall Noida) then go to AGRA and proceed to sight of Taj Mahal Sunset view Dinner & overnight at Hotel', transport: 'By Surface', mealPlan: 'Lunch & Dinner', hotelName: '' },
+        { city: 'Agra', activities: 'AGR SS( Agra fort) Fatehpur Sikri, Lunch at Lake View restaurant(Sikri)and move to JAI Dinner & Overnight at Hotel', transport: 'By Surface', mealPlan: 'Lunch & Dinner', hotelName: '' },
+        { city: 'Jaipur', activities: 'Buffet breakfast . Full day JAI SS (Amber Fort-Jeep, Hawa Mahal, City palace, Virla Mandir), Hena, Lassi Rickshaw Ride Lunch & Dinner & Overnight at Hotel', transport: 'By Surface', mealPlan: 'Breakfast, Lunch & Dinner (AP)', hotelName: '' },
+        { city: 'New Delhi', activities: 'Packed breakfast at 05:30 am . JAI/DEL by flight- AI 1834 – 0830/0935 DEL SS (Agrasen ki baoli, India Gate, Gandi Smriti, Raj Ghat, Qutab Minar), Lunch at Gung green park and drop to Airport by KE 498 19:40 hrs.', transport: 'By Flight', mealPlan: 'Breakfast & Lunch (AP Lunch)', hotelName: '' },
       ]
     },
     {
       id: 'korea-golden-triangle-short',
-      name: 'Korea Golden Triangle Short (07N/08D)',
+      name: 'MT HJ CLASSICAL TOUR',
       days: [
-        { city: 'New Delhi', activities: 'ICN/DEL by KE497(1245-1820), Dinner and Overnight at Hotel.', transport: 'By Flight', mealPlan: 'Dinner Only', hotelName: '' },
-        { city: 'Jaipur', activities: 'DEL-JAI SS(Amber Fort-Jeep, Hawa Mahal, City Palace, Jantar Mantar, Virla Mandir) On arrival lunch at Hotel and Dinner at Hotel, Overnight Hotel.', transport: 'By Surface', mealPlan: 'Breakfast, Lunch & Dinner (AP)', hotelName: '' },
-        { city: 'Agra', activities: 'JAI-Abaneri SS(Chand Baori)-Fatehpur Sikri SS-AGR Lunch at local restaurant at Abhaneri and Dinner & Overnight Hotel.', transport: 'By Surface', mealPlan: 'Breakfast, Lunch & Dinner (AP)', hotelName: '' },
-        { city: 'Agra', activities: 'SS(Taj Mahal, Agra Fort), Hena- Lunch and Dinner at Hotel and Overnight at Hotel.', transport: 'By Surface', mealPlan: 'Breakfast, Lunch & Dinner (AP)', hotelName: '' },
-        { city: 'Khajuraho', activities: 'Train for Jhansi Vande Bharat (0745-1030)-Orcha SS-Khajuraho, Yoga Lunch at Amar Palace Orcha Dinner & Overnight at Hotel.', transport: 'By Train', mealPlan: 'Breakfast, Lunch & Dinner (AP)', hotelName: '' },
-        { city: 'Varanasi', activities: 'SS(East & West Temples), Flight for VNS, Chai, Lassi, Rickshaw, Pooja Lunch & Dinner at Hotel.', transport: 'By Flight', mealPlan: 'Breakfast, Lunch & Dinner (AP)', hotelName: '' },
-        { city: 'New Delhi', activities: 'Sunrise by boat on Ganga, SS(Sarnath, Museum), Flight for DEL. Lunch at Sarnath Varanasi and Dinner at Restaurant Delhi. Overnight at Hotel.', transport: 'By Flight', mealPlan: 'Breakfast, Lunch & Dinner (AP)', hotelName: '' },
-        { city: 'New Delhi', activities: 'SS(Akshardham, India Gate, Gandhi Smriti, President Palace, Parliament House, Qutab Minar), Korean lunch at Gung. Later drop at airport DEL/ICN by KE498(1950-).', transport: 'By Surface', mealPlan: 'Breakfast & Lunch', hotelName: '' },
+        { city: 'New Delhi', activities: 'ICN/DEL by KE497(1245-1820), Dinner and Overnight at Hotel', transport: 'By Flight', mealPlan: 'Dinner Only', hotelName: '' },
+        { city: 'Jaipur', activities: 'DEL-JAI SS(Amber Fort-Jeep, Hawa Mahal, City palace, Jantar Mantar, Virla Mandir) On arrival lunch at Hotel and Dinner Dinner at Hotel , Overnight Hotel', transport: 'By Surface', mealPlan: 'Breakfast, Lunch & Dinner (AP)', hotelName: '' },
+        { city: 'Agra', activities: 'JAI-Abaneri SS(Chand Baori)-F.Skri SS-AGR Lunch at local restaurant at Abhaneri and Dinner & Overnight Hotel', transport: 'By Surface', mealPlan: 'Breakfast, Lunch & Dinner (AP)', hotelName: '' },
+        { city: 'Agra', activities: 'SS(Taj Mahal, Agra Fort), Hena- Lunch and Dinner at Hotel and Overnight at Hotel', transport: 'By Surface', mealPlan: 'Breakfast, Lunch & Dinner (AP)', hotelName: '' },
+        { city: 'Khajuraho', activities: 'Train for Jhansi Shatabadi Express (0755-1045)-Orcha SS-Khajuraho, Yoga Lunch at Amar Palace Orcha Dinner & Overnight at Hotel', transport: 'By Train', mealPlan: 'Breakfast, Lunch & Dinner (AP)', hotelName: '' },
+        { city: 'Varanasi', activities: 'SS(East & West Temples), Flight for VNS by 6E2379(1145-1250), Chai, Lassi, Rickshaw, Pooja Lunch & Dinner at Hotel.', transport: 'By Flight', mealPlan: 'Breakfast, Lunch & Dinner (AP)', hotelName: '' },
+        { city: 'New Delhi', activities: 'Sunrise by boat on Ganga, SS(Sarnath, Museum), Flight for DEL by 6E5040(1555-1735) Lunch at Sarnath Varanasi and Dinner at Local Restaurant Aero city Delhi and Overnight at Hotel', transport: 'By Flight', mealPlan: 'Breakfast, Lunch & Dinner (AP)', hotelName: '' },
+        { city: 'New Delhi', activities: 'SS(Akshardham, India Gate, Gandi Smriti, President palace, Parliament house, Qutub Minar), Korean lunch at Gung Later drop at airport DEL/ICN by KE498(1950- )', transport: 'By Surface', mealPlan: 'Breakfast & Lunch (AP Lunch)', hotelName: '' },
       ]
     },
     {
       id: 'gt-tour',
-      name: 'GT tour',
+      name: 'MT Classical Tour',
       days: [
-        { city: 'New Delhi', activities: 'ICN to DEL by KE.18:30Hrs Dinner & Overnight at Hotel Welcome Toll Plaza Delhi.', transport: 'By Flight', mealPlan: 'Dinner', hotelName: 'Hotel Welcome Toll Plaza Delhi' },
-        { city: 'New Delhi', activities: 'New DEL SS(Akshardham, President palace, Parliament house) Tandoori Lunch at Nineteenth Hall Noida) then go to AGRA and proceed to sight of Taj Mahal Sunset view Dinner & overnight at Grand Mercure Agra (Taj View Room).', transport: 'By Surface', mealPlan: 'Lunch & Dinner', hotelName: 'Grand Mercure Agra' },
-        { city: 'Agra', activities: 'AGR SS( Agra fort) Fatehpur Sikri, Lunch at Lake View restaurant(Sikri)and move to JAI Dinner & Overnight at Radisson Jaipur', transport: 'By Surface', mealPlan: 'Breakfast, Lunch & Dinner (AP)', hotelName: 'Radisson Jaipur' },
-        { city: 'Jaipur', activities: 'Buffet breakfast . Full day JAI SS (Amber Fort-Jeep, Hawa Mahal, City palace, Virla Mandir), Hena, Lassi Rickshaw Ride Lunch & Dinner & Overnight at Radisson Jaipur', transport: 'By Surface', mealPlan: 'Breakfast, Lunch & Dinner (AP)', hotelName: 'Radisson Jaipur' },
-        { city: 'New Delhi', activities: 'Packed breakfast at 05:30 am . JAI/DEL by flight- AI 1834 – 0830/0935 DEL SS (Agrasen ki baoli, India Gate, Gandi Smriti, Raj Ghat, Qutab Minar), Lunch at Gung green park. out by KE 498 19:40 hrs.', transport: 'By Flight', mealPlan: 'Breakfast & Lunch (AP Lunch)', hotelName: '' }
+        { city: 'New Delhi', activities: 'Arrival Delhi by KE 497 at 18:20. On arrival KSG meet/ greet at airport & proceed to hotel. Dinner & Overnight at Hotel', transport: 'By Flight', mealPlan: 'Dinner Only', hotelName: '' },
+        { city: 'Varanasi', activities: 'After breakfast Drive to Delhi airport. Flight to Varanasi AI 1741 1040-1200 Hrs. .On arrival checkin Hotel .Buffet Lunch at hotel. Later afternoon visit to Banaras Hindu University,  local Temple tour and Evening visit to Ghat at Ganges river by Rickshaw ride for Aarti Pooja ceremony viewing.   Dinner & Overnight at Varanasi', transport: 'By Flight', mealPlan: 'Breakfast, Lunch & Dinner (AP)', hotelName: '' },
+        { city: 'Khajuraho', activities: 'Early morning visit to Ghat at Ganges river for morning sunrise view by Boatride. After breakfast at hotel, proceed to Sarnath/ Museum sightseeing, transfer to the airport for Flight to Khajuraho ( 6E 2083 – 1310/ 1405 hrs). On arrival check-in and Lunch at hotel. Afternoon visit to Western group of temple sightseeing tour. Dinner & Overnight stay at hotel.', transport: 'By Flight', mealPlan: 'Breakfast, Lunch & Dinner (AP)', hotelName: '' },
+        { city: 'Agra', activities: 'After Breakfast,  Drive to Jhansi  via Orcha fort sightseeing. Lunch at Orcha Palace hotel. Departure train JHANSI/AGRA : 22469/Vande Bharat Express ( 1825/2055 hrs ). On arrival check-in hotel. Dinner & Overnight at Hotel', transport: 'By Train', mealPlan: 'Breakfast, Lunch & Dinner (AP)', hotelName: '' },
+        { city: 'Agra', activities: 'After morning buffet Breakfast. Full day sightseeing of Taj Mahal & Agra Fort sightseeing.  Lunch at hotel.  Dinner &   Overnight at hotel', transport: 'By Surface', mealPlan: 'Breakfast, Lunch & Dinner (AP)', hotelName: '' },
+        { city: 'Jaipur', activities: 'After Buffet breakfast , checkout-  Drive to Jaipur   On arrival checkin hotel & Lunch at Jaipur Hotel. Proceed Sightseeing  City palace , Hawa Mahal & Albert hall ( Outside photo stop), Amer Fort by Jeep,  Henna/ lassi . Dinner & Overnight at Hotel', transport: 'By Surface', mealPlan: 'Breakfast, Lunch & Dinner (AP)', hotelName: '' },
+        { city: 'New Delhi', activities: 'After Buffet breakfast , checkout. -  Drive to Delhi Enroute Sightseeing Birla Temple,  Jal Mahal. Continue drive to Delhi. On arrival , Korea Lunch at Gung restaurant Gurgaon/Green Park. Afternoon city tour including Sikh Temple , India Gate , President house, Government Buildings. Dinner at Lazeez Affaire Checkin/ Overnight at Hotel.', transport: 'By Surface', mealPlan: 'Breakfast, Lunch & Dinner (AP)', hotelName: '' },
+        { city: 'New Delhi', activities: 'After morning buffet Breakfast. Full day sightseeing tour including Gandhi Smriti, Raj Ghat, Step well, Akshardham Temple & Lotus Temple. Indian Tandoori Lunch at Connaught Club House, Later if time permits visit to local Shopping shop of Souvenir. Departure to Delhi airport for flight for onward destination to Home.', transport: 'By Flight', mealPlan: 'Breakfast & Lunch (AP Lunch)', hotelName: '' },
       ]
     }
   ];
@@ -845,7 +954,10 @@ export default function OperatorPortal({ onLogout }) {
           {/* Non-Printable Action Header */}
           <div className="no-print" style={{ height: '60px', backgroundColor: '#0B4F6C', color: '#FAF7F2', padding: '0 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.15)', flexShrink: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-              <span style={{ fontWeight: '700', fontSize: '1rem' }}>PDF Tour Print Preview ({printTour.tourCode})</span>
+              <span style={{ fontWeight: '700', fontSize: '1rem' }}>
+                PDF Print Preview ({printTour.tourCode}) 
+                {printTour.version ? <span style={{ color: '#FCD34D', marginLeft: '6px' }}>[Version {printTour.version}]</span> : ''}
+              </span>
               
               {/* Format Dropdown Selector */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -863,7 +975,19 @@ export default function OperatorPortal({ onLogout }) {
             </div>
 
             <div style={{ display: 'flex', gap: '12px' }}>
-              <button onClick={() => window.print()} style={{ backgroundColor: '#10B981', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '6px', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem' }}>
+              <button 
+                onClick={() => {
+                  const originalTitle = document.title;
+                  let formatName = 'Full_Itinerary';
+                  if (printFormat === 'short') formatName = 'Short_Itinerary';
+                  if (printFormat === 'hotelVoucher') formatName = `Hotel_Voucher_Day_${printTour.itinerary[voucherDayIndex]?.day || 1}`;
+                  const vStr = printTour.version ? `_v${printTour.version}` : '';
+                  document.title = `${printTour.tourCode}_${formatName}${vStr}`;
+                  window.print();
+                  setTimeout(() => { document.title = originalTitle; }, 1000);
+                }} 
+                style={{ backgroundColor: '#10B981', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '6px', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem' }}
+              >
                 <Printer size={16} /> Print Document
               </button>
               <button onClick={() => setPrintTour(null)} style={{ backgroundColor: 'rgba(255,255,255,0.15)', color: 'white', border: '1px solid rgba(255,255,255,0.3)', padding: '8px 16px', borderRadius: '6px', fontWeight: '700', cursor: 'pointer', fontSize: '0.85rem' }}>
@@ -1921,7 +2045,7 @@ export default function OperatorPortal({ onLogout }) {
               <div className="mgmt-stat-card">
                 <div className="mgmt-stat-icon-wrap"><Clipboard /></div>
                 <div>
-                  <h4 style={{ fontSize: '1.25rem', fontWeight: '800' }}>{tours.length}</h4>
+                  <h4 style={{ fontSize: '1.25rem', fontWeight: '800' }}>{tours.filter(t => t.startDate).length}</h4>
                   <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>Total Tours</p>
                 </div>
               </div>
@@ -1956,12 +2080,43 @@ export default function OperatorPortal({ onLogout }) {
             {/* ====== DAILY MOMENT VIEW ====== */}
             {dashboardView === 'daily' && (
               <>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', alignItems: 'center', marginBottom: '20px' }}>
-                  <div className="mgmt-form-group" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', alignItems: 'center', marginBottom: '20px', background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                  <div className="mgmt-form-group" style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: 0 }}>
                     <Calendar size={18} color="var(--primary)" />
                     <span style={{ fontWeight: '600', fontSize: '0.9rem' }}>{t('selectDate')}:</span>
-                    <input type="date" className="mgmt-input" style={{ width: '180px', padding: '6px 12px' }} value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} />
+                    <input type="date" className="mgmt-input" style={{ width: 'auto', padding: '6px 12px' }} value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} />
                   </div>
+                  
+                  <div style={{ width: '1px', height: '24px', backgroundColor: '#cbd5e1', margin: '0 8px' }}></div>
+                  
+                  <div className="mgmt-form-group" style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: 0 }}>
+                    <span style={{ fontWeight: '600', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>City:</span>
+                    <select className="mgmt-select" style={{ width: 'auto', padding: '6px 12px', margin: 0 }} value={dashboardFilterCity} onChange={(e) => setDashboardFilterCity(e.target.value)}>
+                      <option value="">All Cities</option>
+                      {cities.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                    </select>
+                  </div>
+                  
+                  <div className="mgmt-form-group" style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: 0 }}>
+                    <span style={{ fontWeight: '600', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Duty Type:</span>
+                    <select className="mgmt-select" style={{ width: 'auto', padding: '6px 12px', margin: 0 }} value={dashboardFilterDutyType} onChange={(e) => setDashboardFilterDutyType(e.target.value)}>
+                      <option value="">All Duties</option>
+                      <option value="Arrival">🛬 Arrival</option>
+                      <option value="Sightseeing">🏛️ Sightseeing</option>
+                      <option value="Intercity Drive">🚗 Intercity Drive</option>
+                      <option value="Leisure">🌴 Leisure / Free Time</option>
+                      <option value="Departure">🛫 Departure</option>
+                    </select>
+                  </div>
+
+                  {(dashboardFilterCity || dashboardFilterDutyType) && (
+                    <button 
+                      onClick={() => { setDashboardFilterCity(''); setDashboardFilterDutyType(''); }}
+                      style={{ padding: '6px 12px', background: '#dcfce7', color: '#166534', border: 'none', borderRadius: '6px', fontSize: '0.8rem', fontWeight: '700', cursor: 'pointer' }}
+                    >
+                      Clear Filters
+                    </button>
+                  )}
                 </div>
 
                 <h3 style={{ fontFamily: 'var(--font-title)', fontSize: '1.25rem', fontWeight: '800', marginBottom: '14px', color: 'var(--navy)' }}>
@@ -1975,7 +2130,16 @@ export default function OperatorPortal({ onLogout }) {
                   </div>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                    {activeTours.map((tour) => {
+                    {activeTours.filter(tour => {
+                      const startDateObj = new Date(tour.startDate);
+                      const currDateObj = new Date(selectedDate);
+                      const dayIndex = Math.floor((currDateObj - startDateObj) / (1000 * 3600 * 24));
+                      const currentDayItinerary = tour.itinerary?.[dayIndex] || null;
+                      
+                      if (dashboardFilterCity && currentDayItinerary?.city !== dashboardFilterCity) return false;
+                      if (dashboardFilterDutyType && currentDayItinerary?.dayNature !== dashboardFilterDutyType) return false;
+                      return true;
+                    }).map((tour) => {
                       const isExpanded = expandedTourCode === tour.tourCode;
                       const startDateObj = new Date(tour.startDate);
                       const currDateObj = new Date(selectedDate);
@@ -1988,9 +2152,16 @@ export default function OperatorPortal({ onLogout }) {
                             <div>
                               <h4 style={{ fontSize: '1.1rem', fontWeight: '800', color: 'var(--navy)' }}>{tour.tourName} ({tour.tourCode})</h4>
                               <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Guest: {tour.clientName} ({tour.pax} Pax) {formatTourRooms(tour)}</p>
-                              <p style={{ fontSize: '0.82rem', color: 'var(--primary)', fontWeight: '600', marginTop: '4px' }}>
-                                Current Location Today: {currentDayItinerary?.city || 'Not Specified'}
-                              </p>
+                              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '4px' }}>
+                                <span style={{ fontSize: '0.82rem', color: 'var(--primary)', fontWeight: '600' }}>
+                                  📍 {currentDayItinerary?.city || 'Not Specified'}
+                                </span>
+                                {currentDayItinerary?.dayNature && (
+                                  <span style={{ fontSize: '0.75rem', background: '#e0e7ff', color: '#3730a3', padding: '2px 8px', borderRadius: '12px', fontWeight: '700' }}>
+                                    {currentDayItinerary.dayNature}
+                                  </span>
+                                )}
+                              </div>
                             </div>
                             <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                               <button className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', fontSize: '0.82rem' }} onClick={() => setPrintTour(tour)}>
@@ -1999,8 +2170,183 @@ export default function OperatorPortal({ onLogout }) {
                               <button className="btn-ghost" onClick={() => setExpandedTourCode(isExpanded ? null : tour.tourCode)}>
                                 {isExpanded ? 'Collapse' : 'Manage Crew'}
                               </button>
+                              <button className="btn-ghost" onClick={() => { if (confirm('Are you sure you want to delete this tour?')) handleDeleteTourItem(tour.tourCode); }} style={{ color: 'var(--danger)', padding: '6px' }} title="Delete Tour">
+                                <Trash2 size={16} />
+                              </button>
                             </div>
                           </div>
+
+                          {/* Flight Status Tracking & Instant Shift */}
+                          {currentDayItinerary?.flightNo && (
+                            <div style={{ marginTop: '12px', padding: '12px', backgroundColor: '#F8FAFC', borderRadius: '8px', border: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <div>
+                                <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: '700' }}>FLIGHT TRACKING</div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+                                  <span style={{ fontWeight: '800', color: 'var(--navy)' }}>{currentDayItinerary.flightNo}</span>
+                                  {flightStatusCache[currentDayItinerary.flightNo] ? (
+                                    <span style={{ fontSize: '0.8rem', fontWeight: '800', color: flightStatusCache[currentDayItinerary.flightNo].color, background: `${flightStatusCache[currentDayItinerary.flightNo].color}15`, padding: '2px 8px', borderRadius: '12px' }}>
+                                      {flightStatusCache[currentDayItinerary.flightNo].text} (Updated: {flightStatusCache[currentDayItinerary.flightNo].time})
+                                    </span>
+                                  ) : (
+                                    <span style={{ fontSize: '0.8rem', color: '#94A3B8', fontStyle: 'italic' }}>Not tracked yet</span>
+                                  )}
+                                </div>
+                              </div>
+                              <div style={{ display: 'flex', gap: '8px' }}>
+                                <button 
+                                  onClick={() => trackFlight(currentDayItinerary.flightNo)}
+                                  disabled={trackingFlight === currentDayItinerary.flightNo}
+                                  style={{ padding: '6px 12px', backgroundColor: '#F1F5F9', border: '1px solid #CBD5E1', borderRadius: '6px', fontSize: '0.8rem', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--navy)' }}
+                                >
+                                  {trackingFlight === currentDayItinerary.flightNo ? 'Tracking...' : '✈️ Track Status'}
+                                </button>
+                                <button 
+                                  onClick={() => openInstantShift(tour, dayIndex, currentDayItinerary.flightNo)}
+                                  style={{ padding: '6px 12px', backgroundColor: '#EF4444', color: 'white', border: 'none', borderRadius: '6px', fontSize: '0.8rem', fontWeight: '800', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', boxShadow: '0 2px 4px rgba(239, 68, 68, 0.2)' }}
+                                >
+                                  🚨 Instant Shift
+                                </button>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Inter-city Transfer Info & Driver Assignment */}
+                          {currentDayItinerary?.interCityTransfer && (
+                            <div style={{ marginTop: '12px', padding: '14px', background: 'linear-gradient(135deg, #eff6ff, #dbeafe)', border: '1px solid #93c5fd', borderRadius: '10px' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px', flexWrap: 'wrap' }}>
+                                <div>
+                                  <div style={{ fontSize: '0.72rem', color: '#1d4ed8', fontWeight: '800', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '6px' }}>🔄 Inter-city Transfer Today</div>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <select
+                                      value={currentDayItinerary.transferOrigin || ''}
+                                      onChange={async (e) => {
+                                        const updatedItinerary = tour.itinerary.map((d, i) =>
+                                          i === dayIndex ? { ...d, transferOrigin: e.target.value } : d
+                                        );
+                                        await updateTour(tour.tourCode, { itinerary: updatedItinerary });
+                                      }}
+                                      style={{ fontWeight: '800', fontSize: '0.9rem', color: '#1e3a8a', border: '1px solid #93c5fd', borderRadius: '6px', padding: '4px 8px', width: '120px', background: 'white' }}
+                                    >
+                                      <option value="">Origin City</option>
+                                      {cities.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                                    </select>
+                                    <span style={{ color: '#2563eb', fontSize: '1.2rem', fontWeight: '900' }}>→</span>
+                                    <select
+                                      value={currentDayItinerary.transferDestination || ''}
+                                      onChange={async (e) => {
+                                        const updatedItinerary = tour.itinerary.map((d, i) =>
+                                          i === dayIndex ? { ...d, transferDestination: e.target.value } : d
+                                        );
+                                        await updateTour(tour.tourCode, { itinerary: updatedItinerary });
+                                      }}
+                                      style={{ fontWeight: '800', fontSize: '0.9rem', color: '#1e3a8a', border: '1px solid #93c5fd', borderRadius: '6px', padding: '4px 8px', width: '120px', background: 'white' }}
+                                    >
+                                      <option value="">Dest. City</option>
+                                      {cities.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                                    </select>
+                                  </div>
+                                </div>
+                                <div style={{ minWidth: '180px' }}>
+                                  <label style={{ fontSize: '0.72rem', fontWeight: '800', textTransform: 'uppercase', color: '#1d4ed8', display: 'block', marginBottom: '4px' }}>🚗 Leg 1 Origin Driver</label>
+                                  <select
+                                    className="mgmt-select"
+                                    value={currentDayItinerary.transferDriverName || ''}
+                                    onChange={async (e) => {
+                                      const driverName = e.target.value;
+                                      const driverObj = drivers.find(d => d.name === driverName);
+                                      const driverMobile = driverObj ? driverObj.mobile : '';
+                                      const updatedItinerary = tour.itinerary.map((d, i) =>
+                                        i === dayIndex ? { ...d, transferDriverName: driverName, transferDriverMobile: driverMobile } : d
+                                      );
+                                      await updateTour(tour.tourCode, { itinerary: updatedItinerary });
+                                    }}
+                                    style={{ marginBottom: '4px' }}
+                                  >
+                                    <option value="">Assign Leg 1 Driver...</option>
+                                    {drivers.map(d => (
+                                      <option key={d.id} value={d.name}>{d.name} ({d.vehicleType || d.type})</option>
+                                    ))}
+                                  </select>
+                                  {currentDayItinerary.transferDriverName && (
+                                    <button 
+                                      onClick={() => {
+                                        const t = { ...tour, driverName: currentDayItinerary.transferDriverName, driverMobile: currentDayItinerary.transferDriverMobile };
+                                        handleSendDutyToWhatsApp(t, 'driver');
+                                      }}
+                                      style={{ padding: '4px 8px', backgroundColor: '#25D366', color: '#fff', borderRadius: '4px', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.7rem', fontWeight: 'bold' }}
+                                      title="Send Leg 1 duty to WhatsApp"
+                                    >
+                                      📱 WhatsApp (Leg 1)
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                              
+                              {/* Leg 1 Departure Status */}
+                              <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px dashed #bfdbfe', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <span style={{ fontSize: '0.8rem', fontWeight: '700', color: '#1e3a8a' }}>Origin Leg Departure Status:</span>
+                                {currentDayItinerary.transferDepartureDone ? (
+                                  <span style={{ fontSize: '0.8rem', fontWeight: '800', color: '#166534', background: '#dcfce7', padding: '4px 10px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                    <CheckCircle2 size={14} /> Completed
+                                  </span>
+                                ) : (
+                                  <button
+                                    onClick={async () => {
+                                      if (confirm(`Mark Leg 1 Departure as Completed for ${currentDayItinerary.transferOrigin}? This will remove the tour from the Origin Driver's app.`)) {
+                                        const updatedItinerary = tour.itinerary.map((d, i) =>
+                                          i === dayIndex ? { ...d, transferDepartureDone: true, transferDepartureTime: new Date().toISOString() } : d
+                                        );
+                                        await updateTour(tour.tourCode, { itinerary: updatedItinerary });
+                                      }
+                                    }}
+                                    style={{ padding: '6px 12px', backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontSize: '0.75rem', fontWeight: '700', cursor: 'pointer', boxShadow: '0 2px 4px rgba(37, 99, 235, 0.2)' }}
+                                  >
+                                    Mark Departure Done
+                                  </button>
+                                )}
+                              </div>
+                              
+                              {/* Leg 2 Destination Driver (Only visible if Leg 1 is completed) */}
+                              {currentDayItinerary.transferDepartureDone && (
+                                <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px dashed #bfdbfe', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+                                  <div style={{ fontSize: '0.72rem', color: '#1d4ed8', fontWeight: '800', textTransform: 'uppercase' }}>🛬 Leg 2 Pick-up Driver</div>
+                                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                    <select
+                                      className="mgmt-select"
+                                      value={currentDayItinerary.destTransferDriverName || ''}
+                                      onChange={async (e) => {
+                                        const driverName = e.target.value;
+                                        const driverObj = drivers.find(d => d.name === driverName);
+                                        const driverMobile = driverObj ? driverObj.mobile : '';
+                                        const updatedItinerary = tour.itinerary.map((d, i) =>
+                                          i === dayIndex ? { ...d, destTransferDriverName: driverName, destTransferDriverMobile: driverMobile } : d
+                                        );
+                                        await updateTour(tour.tourCode, { itinerary: updatedItinerary });
+                                      }}
+                                      style={{ marginBottom: 0, minWidth: '150px' }}
+                                    >
+                                      <option value="">Assign Leg 2 Driver...</option>
+                                      {drivers.map(d => (
+                                        <option key={d.id} value={d.name}>{d.name} ({d.vehicleType || d.type})</option>
+                                      ))}
+                                    </select>
+                                    {currentDayItinerary.destTransferDriverName && (
+                                      <button 
+                                        onClick={() => {
+                                          const t = { ...tour, driverName: currentDayItinerary.destTransferDriverName, driverMobile: currentDayItinerary.destTransferDriverMobile };
+                                          handleSendDutyToWhatsApp(t, 'driver');
+                                        }}
+                                        style={{ padding: '4px 8px', backgroundColor: '#25D366', color: '#fff', borderRadius: '4px', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.7rem', fontWeight: 'bold' }}
+                                        title="Send Leg 2 duty to WhatsApp"
+                                      >
+                                        📱 WhatsApp
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
 
                           {isExpanded && (
                             <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px dashed var(--border)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -2119,6 +2465,9 @@ export default function OperatorPortal({ onLogout }) {
                             </button>
                             <button className="btn-primary" style={{ padding: '6px 14px', fontSize: '0.8rem' }} onClick={() => setEditingTour(JSON.parse(JSON.stringify(tour)))}>
                               ✏️ Edit
+                            </button>
+                            <button className="btn-ghost" onClick={() => { if (confirm('Are you sure you want to delete this tour?')) handleDeleteTourItem(tour.tourCode); }} style={{ color: 'var(--danger)', padding: '6px' }} title="Delete Tour">
+                              <Trash2 size={16} />
                             </button>
                           </div>
                         </div>
@@ -2652,7 +3001,9 @@ export default function OperatorPortal({ onLogout }) {
         {/* TAB: LIVE TRACKING */}
         {activeTab === 'liveTracking' && (() => {
           const activeToursList = tours.filter(t => {
-            const today = new Date().toISOString().split('T')[0];
+            // Get today's date in IST (India Standard Time, +05:30)
+            const nowIST = new Date(Date.now() + (5.5 * 60 * 60 * 1000));
+            const today = nowIST.toISOString().split('T')[0];
             return t.startDate <= today && t.endDate >= today;
           });
 
@@ -3008,6 +3359,22 @@ export default function OperatorPortal({ onLogout }) {
                           {hotelsInCity.map(h => <option key={h.id} value={h.name}>{h.name}</option>)}
                         </select>
                       </div>
+
+                      <div>
+                        <label className="login-label" style={{ color: 'var(--text-primary)', fontSize: '0.78rem' }}>Duty Nature</label>
+                        <select className="mgmt-select" value={day.dayNature || ''} onChange={(e) => {
+                          const updated = [...itineraryDays];
+                          updated[idx].dayNature = e.target.value;
+                          setItineraryDays(updated);
+                        }}>
+                          <option value="">Unspecified</option>
+                          <option value="Arrival">🛬 Arrival</option>
+                          <option value="Sightseeing">🏛️ Sightseeing</option>
+                          <option value="Intercity Drive">🚗 Intercity Drive</option>
+                          <option value="Leisure">🌴 Leisure / Free Time</option>
+                          <option value="Departure">🛫 Departure</option>
+                        </select>
+                      </div>
                     </div>
 
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '12px', marginBottom: '12px' }}>
@@ -3098,6 +3465,21 @@ export default function OperatorPortal({ onLogout }) {
                                     }}
                                     placeholder="Stop Name / Destination"
                                   />
+                                  {day.interCityTransfer && (
+                                    <select
+                                      className="mgmt-select"
+                                      style={{ width: 'auto', padding: '6px', fontSize: '0.75rem', margin: 0, backgroundColor: '#eff6ff', borderColor: '#bfdbfe', color: '#1d4ed8', fontWeight: '700' }}
+                                      value={act.cityTag || 'Origin'}
+                                      onChange={(e) => {
+                                        const updated = [...itineraryDays];
+                                        updated[idx].activitiesList[actIdx].cityTag = e.target.value;
+                                        setItineraryDays(updated);
+                                      }}
+                                    >
+                                      <option value="Origin">Origin City</option>
+                                      <option value="Destination">Destination City</option>
+                                    </select>
+                                  )}
                                   <button
                                     type="button"
                                     onClick={() => {
@@ -3186,6 +3568,84 @@ export default function OperatorPortal({ onLogout }) {
                       </div>
                     )}
 
+                    {/* ── Inter-city Transfer Toggle (only Train/Flight) ── */}
+                    {(day.transport === 'By Flight' || day.transport === 'By Train') && (
+                      <div style={{ marginTop: '14px', padding: '14px', background: day.interCityTransfer ? 'linear-gradient(135deg, #eff6ff, #dbeafe)' : '#f8fafc', border: `1px solid ${day.interCityTransfer ? '#93c5fd' : '#e2e8f0'}`, borderRadius: '10px', transition: 'all 0.25s' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ fontSize: '1rem' }}>🔄</span>
+                            <span style={{ fontSize: '0.82rem', fontWeight: '800', color: day.interCityTransfer ? '#1d4ed8' : 'var(--navy)' }}>
+                              Inter-city Transfer on This Day
+                            </span>
+                            {day.interCityTransfer && (
+                              <span style={{ fontSize: '0.65rem', background: '#2563eb', color: '#fff', padding: '2px 8px', borderRadius: '10px', fontWeight: '700' }}>ACTIVE</span>
+                            )}
+                          </div>
+                          {/* Toggle switch */}
+                          <div
+                            onClick={() => {
+                              const updated = [...itineraryDays];
+                              updated[idx].interCityTransfer = !updated[idx].interCityTransfer;
+                              if (!updated[idx].interCityTransfer) {
+                                updated[idx].transferOrigin = '';
+                                updated[idx].transferDestination = '';
+                              }
+                              setItineraryDays(updated);
+                            }}
+                            style={{
+                              width: '44px', height: '24px', borderRadius: '12px', cursor: 'pointer', position: 'relative',
+                              background: day.interCityTransfer ? '#2563eb' : '#cbd5e1',
+                              transition: 'background 0.2s', flexShrink: 0
+                            }}
+                          >
+                            <div style={{
+                              position: 'absolute', top: '3px', width: '18px', height: '18px', borderRadius: '50%',
+                              background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+                              left: day.interCityTransfer ? '23px' : '3px',
+                              transition: 'left 0.2s'
+                            }} />
+                          </div>
+                        </div>
+
+                        {day.interCityTransfer && (
+                          <div style={{ marginTop: '12px' }}>
+                            <p style={{ fontSize: '0.75rem', color: '#2563eb', fontWeight: '600', margin: '0 0 10px 0' }}>
+                              ℹ️ Driver for this transfer leg will be assigned from the Daily Dashboard. Fill route details below:
+                            </p>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: '8px', alignItems: 'center' }}>
+                              <div>
+                                <label className="login-label" style={{ color: 'var(--text-primary)', fontSize: '0.75rem' }}>📍 Origin City</label>
+                                <input
+                                  className="mgmt-input"
+                                  placeholder="e.g. Varanasi"
+                                  value={day.transferOrigin || ''}
+                                  onChange={(e) => {
+                                    const updated = [...itineraryDays];
+                                    updated[idx].transferOrigin = e.target.value;
+                                    setItineraryDays(updated);
+                                  }}
+                                />
+                              </div>
+                              <div style={{ textAlign: 'center', paddingTop: '20px', fontSize: '1.2rem', color: '#2563eb', fontWeight: '800' }}>→</div>
+                              <div>
+                                <label className="login-label" style={{ color: 'var(--text-primary)', fontSize: '0.75rem' }}>🏁 Destination City</label>
+                                <input
+                                  className="mgmt-input"
+                                  placeholder="e.g. Agra"
+                                  value={day.transferDestination || ''}
+                                  onChange={(e) => {
+                                    const updated = [...itineraryDays];
+                                    updated[idx].transferDestination = e.target.value;
+                                    setItineraryDays(updated);
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     {/* Local Restaurant */}
                     <div className="mgmt-form-row" style={{ marginTop: '12px' }}>
                       <div>
@@ -3235,6 +3695,106 @@ export default function OperatorPortal({ onLogout }) {
           </div>
         )}
       </div>
+          {/* Instant Shift Modal */}
+          {shiftModalOpen && (
+            <div className="mgmt-modal-overlay">
+              <div className="mgmt-modal" style={{ maxWidth: '600px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '16px', marginBottom: '20px' }}>
+                  <h3 style={{ margin: 0, fontSize: '1.25rem', color: '#1e293b', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    🚨 Instant Transport Switcher
+                  </h3>
+                  <button onClick={() => setShiftModalOpen(false)} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#94a3b8' }}>&times;</button>
+                </div>
+
+                {/* Active Flight Info */}
+                <div style={{ padding: '16px', backgroundColor: '#FEF2F2', borderRadius: '8px', border: '1px solid #FECACA', marginBottom: '20px' }}>
+                  <div style={{ fontSize: '0.8rem', color: '#991B1B', fontWeight: '800', marginBottom: '4px' }}>AFFECTED TOUR: {shiftTour?.tourCode}</div>
+                  <div style={{ fontSize: '0.95rem', color: '#7F1D1D', fontWeight: '600' }}>Target Flight: <span style={{ fontWeight: '800' }}>{shiftFlightDetails}</span></div>
+                  {flightStatusCache[shiftFlightDetails] && (
+                    <div style={{ marginTop: '8px', fontSize: '0.9rem', fontWeight: '800', color: flightStatusCache[shiftFlightDetails].color }}>
+                      Live Status: {flightStatusCache[shiftFlightDetails].text}
+                    </div>
+                  )}
+                </div>
+
+                {/* Transport Mode Switcher */}
+                <div style={{ marginBottom: '20px' }}>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '800', color: '#475569', marginBottom: '8px' }}>Select New Transport Mode</label>
+                  <div style={{ display: 'flex', gap: '10px', background: '#f1f5f9', padding: '6px', borderRadius: '8px' }}>
+                    {['Train', 'Car', 'Flight'].map(mode => (
+                      <button
+                        key={mode}
+                        onClick={() => setShiftMode(mode)}
+                        style={{
+                          flex: 1, padding: '10px', borderRadius: '6px', border: 'none', cursor: 'pointer', fontWeight: '700', transition: 'all 0.2s',
+                          backgroundColor: shiftMode === mode ? 'white' : 'transparent',
+                          color: shiftMode === mode ? 'var(--primary)' : '#64748b',
+                          boxShadow: shiftMode === mode ? '0 2px 4px rgba(0,0,0,0.05)' : 'none'
+                        }}
+                      >
+                        {mode === 'Train' ? '🚆 By Train' : mode === 'Car' ? '🚗 By Car (Surface)' : '✈️ New Flight'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Dynamic Inputs */}
+                <div style={{ marginBottom: '24px', padding: '16px', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
+                  {shiftMode === 'Train' && (
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '700', color: '#475569', marginBottom: '6px' }}>Train Number & Details</label>
+                      <input type="text" className="mgmt-input" placeholder="e.g. 22469/Vande Bharat Express" value={shiftTrainNo} onChange={(e) => setShiftTrainNo(e.target.value)} />
+                    </div>
+                  )}
+                  {shiftMode === 'Car' && (
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '700', color: '#475569', marginBottom: '6px' }}>Select Replacement Driver</label>
+                      <select className="mgmt-select" value={shiftDriver} onChange={(e) => setShiftDriver(e.target.value)}>
+                        <option value="">-- Select Driver --</option>
+                        {drivers.map(d => <option key={d.id} value={d.name}>{d.name} ({d.vehicleType || 'Car'})</option>)}
+                      </select>
+                    </div>
+                  )}
+                  {shiftMode === 'Flight' && (
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '700', color: '#475569', marginBottom: '6px' }}>New Flight Number</label>
+                      <input type="text" className="mgmt-input" placeholder="e.g. AI 889" value={shiftFlightNo} onChange={(e) => setShiftFlightNo(e.target.value)} />
+                    </div>
+                  )}
+                </div>
+
+                {/* Smart Automation */}
+                <div style={{ marginBottom: '24px', padding: '16px', background: 'var(--primary-light)', borderRadius: '8px', border: '1px solid var(--primary)' }}>
+                  <label style={{ display: 'block', fontSize: '0.9rem', fontWeight: '800', color: 'var(--navy)', marginBottom: '12px' }}>
+                    🤖 Smart Next-Step Automation
+                  </label>
+                  <p style={{ fontSize: '0.75rem', color: '#475569', marginBottom: '12px' }}>Check actions to instantly broadcast to Guide & Driver apps:</p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', fontWeight: '600', cursor: 'pointer' }}>
+                      <input type="checkbox" checked={shiftActionWait} onChange={(e) => setShiftActionWait(e.target.checked)} style={{ width: '16px', height: '16px' }} />
+                      Instruct current Guide/Driver to WAIT at airport/station
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', fontWeight: '600', cursor: 'pointer' }}>
+                      <input type="checkbox" checked={shiftActionDismiss} onChange={(e) => setShiftActionDismiss(e.target.checked)} style={{ width: '16px', height: '16px' }} />
+                      Dismiss current Driver from duty
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', fontWeight: '600', cursor: 'pointer' }}>
+                      <input type="checkbox" checked={shiftActionRoute} onChange={(e) => setShiftActionRoute(e.target.checked)} style={{ width: '16px', height: '16px' }} />
+                      Instruct current Driver to ROUTE to new station/airport immediately
+                    </label>
+                  </div>
+                </div>
+
+                {/* Footer */}
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '24px' }}>
+                  <button className="btn-secondary" onClick={() => setShiftModalOpen(false)}>Cancel</button>
+                  <button className="btn-primary" onClick={handleInstantShiftSubmit} style={{ backgroundColor: '#EF4444', border: 'none' }}>
+                    🚨 Publish Live Update
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
     </div>
   );
 }
