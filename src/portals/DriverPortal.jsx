@@ -516,9 +516,14 @@ export default function DriverPortal({ driverMobile, onLogout }) {
   // Don't rely on currentDay alone. Scan ALL itinerary days to find the driver's role.
   // This is immune to date format mismatches and fallback day index issues.
   
-  // Find the day where this driver is the Origin (Leg 1) transfer driver
+  // Find the day where this driver is the Leg-1 (Origin) DROP-OFF driver.
+  // IMPORTANT: Only count days that have a destTransferDriverMobile — meaning there
+  // is a Leg-2 driver taking over. This prevents a single-leg airport arrival pickup
+  // (Day 1, no leg-2 driver) from being incorrectly treated as a "handoff" point.
   const originTransferDayIndex = tourData.itinerary?.findIndex(day =>
-    day?.interCityTransfer && mobileMatches(day.transferDriverMobile, cleanMobileCalc)
+    day?.interCityTransfer &&
+    mobileMatches(day.transferDriverMobile, cleanMobileCalc) &&
+    !!day.destTransferDriverMobile  // must have a leg-2 driver to be a genuine handoff
   ) ?? -1;
 
   // Find the day where this driver is the Destination (Leg 2) pick-up driver
@@ -545,29 +550,35 @@ export default function DriverPortal({ driverMobile, onLogout }) {
     isDestTransferCalc, destTransferDayIndex, isMainDriver, selectedDate,
   });
 
-  // ── ACTIVE DATE RANGE FOR TRANSFER DRIVERS ─────────────────────────────────
-  // Each leg/transfer driver is only "on duty" between their pick-up date and
-  // drop-off date. Outside that window they should NOT see another driver's day.
-  // e.g. Raj1: active from Khajuraho pickup day → Varanasi dropoff day.
-  //      Raj3: active from Varanasi pickup day → tour end.
-  //      Deep: isMainDriver=true so full tour range is kept.
+  // ── ACTIVE DATE RANGE FOR EACH DRIVER ─────────────────────────────────────
+  // ALL drivers (including main driver Deep) are limited to their own duty dates.
+  // Deep (main+origin): active from tourStart → his handoff day (inclusive).
+  // Raj1 (dest+origin): active from his pickup day → his drop-off day.
+  // Raj3 (dest only) : active from his pickup day → tourEnd.
   let driverFirstActiveYYYYMMDD = tourStartYYYYMMDD;
   let driverLastActiveYYYYMMDD  = tourEndYYYYMMDD;
 
   if (!isMainDriver && isDestTransferCalc && destTransferDayIndex !== -1) {
+    // Leg-2/3 driver: not active before their pickup day
     const pd = tourData.itinerary[destTransferDayIndex]?.dateStr;
     const c = pd ? tourStrToYYYYMMDD(pd) : null;
     if (c) driverFirstActiveYYYYMMDD = c;
   }
-  if (!isMainDriver && isOriginTransferCalc && originTransferDayIndex !== -1) {
+  // ALL drivers with a genuine handoff: their LAST active day is the handoff day.
+  // (No !isMainDriver guard — Deep also hands off to Raj1 and should stop seeing after that)
+  if (isOriginTransferCalc && originTransferDayIndex !== -1) {
     const dd = tourData.itinerary[originTransferDayIndex]?.dateStr;
     const c = dd ? tourStrToYYYYMMDD(dd) : null;
     if (c) driverLastActiveYYYYMMDD = c;
   }
 
-  // Is today before this driver's assignment start date?
-  const isBeforeDriverRange = !isMainDriver && (isDestTransferCalc || isOriginTransferCalc) &&
-    !!driverFirstActiveYYYYMMDD && selectedDate < driverFirstActiveYYYYMMDD;
+  // Leg-1 completion flag: when Deep marks drop-off done, Raj1's "upcoming" screen disappears
+  const leg1Completed = isDestTransferCalc &&
+    !!tourData.itinerary?.[destTransferDayIndex]?.transferDepartureDone;
+
+  // Is today before this driver's assignment start date AND leg-1 is not yet done?
+  const isBeforeDriverRange = !isMainDriver && isDestTransferCalc &&
+    !leg1Completed && selectedDate < driverFirstActiveYYYYMMDD;
 
   // ── TODAY-SPECIFIC TRANSFER ROLE ────────────────────────────────────────────
   // Determine what role (if any) this driver has specifically TODAY, not just globally.
@@ -1128,13 +1139,19 @@ export default function DriverPortal({ driverMobile, onLogout }) {
                 }}
               >
                 <option value={getTodayYYYYMMDD()}>{language === 'KO' ? '오늘 날짜' : 'Today'}</option>
-                {tourData.itinerary?.map((day) => {
+                {tourData.itinerary?.filter((day) => {
                   const dayYYYY = tourStrToYYYYMMDD(day.dateStr);
-                  return dayYYYY ? (
+                  if (!dayYYYY) return false;
+                  if (driverFirstActiveYYYYMMDD && dayYYYY < driverFirstActiveYYYYMMDD) return false;
+                  if (driverLastActiveYYYYMMDD && dayYYYY > driverLastActiveYYYYMMDD) return false;
+                  return true;
+                }).map((day) => {
+                  const dayYYYY = tourStrToYYYYMMDD(day.dateStr);
+                  return (
                     <option key={day.day} value={dayYYYY}>
                       Day {day.day} ({day.city})
                     </option>
-                  ) : null;
+                  );
                 })}
               </select>
 
@@ -1407,9 +1424,17 @@ export default function DriverPortal({ driverMobile, onLogout }) {
                               </button>
                             )}
                             {currentStatus === 'completed' && (
-                              <span style={{ fontSize: '0.7rem', color: '#22c55e', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                                <CheckCircle2 size={12} /> {language === 'KO' ? '수행 완료됨' : 'Task Completed'}
-                              </span>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span style={{ fontSize: '0.7rem', color: '#22c55e', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                                  <CheckCircle2 size={12} /> {language === 'KO' ? '수행 완료됨' : 'Completed'}
+                                </span>
+                                <button
+                                  onClick={() => handleUpdateActivityStatus(realActiveDayIdx, idx, 'scheduled')}
+                                  style={{ fontSize: '0.65rem', color: '#94a3b8', background: 'none', border: '1px solid #e2e8f0', borderRadius: '4px', padding: '2px 6px', cursor: 'pointer', fontWeight: '600' }}
+                                >
+                                  Undo
+                                </button>
+                              </div>
                             )}
                           </div>
                         </div>
@@ -1495,21 +1520,32 @@ export default function DriverPortal({ driverMobile, onLogout }) {
           </h3>
 
           <div style={styles.daysListContainer}>
-            {tourData.itinerary?.map((day, idx) => {
+            {tourData.itinerary?.filter((day) => {
+              // Each driver only sees days within their active range
+              const dayYYYY = tourStrToYYYYMMDD(day.dateStr);
+              if (!dayYYYY) return true; // no date = show anyway
+              if (driverFirstActiveYYYYMMDD && dayYYYY < driverFirstActiveYYYYMMDD) return false;
+              if (driverLastActiveYYYYMMDD && dayYYYY > driverLastActiveYYYYMMDD) return false;
+              return true;
+            }).map((day, _, filteredArr) => {
+              const idx = tourData.itinerary.indexOf(day);
               const isSelectedDay = yyyymmddToTourStr(selectedDate) === day.dateStr;
               const isToday = day.dateStr === yyyymmddToTourStr(getTodayYYYYMMDD());
               const isArrived = day.arrived;
+              // Is this the handoff day? Show a special indicator
+              const isHandoffDay = idx === originTransferDayIndex;
 
               return (
                 <div
                   key={idx}
+                  ref={isToday ? activeDayRef : null}
                   onClick={() => {
                     const dayYYYY = tourStrToYYYYMMDD(day.dateStr);
                     if (dayYYYY) setSelectedDate(dayYYYY);
                   }}
                   style={{
                     ...styles.dayCard,
-                    borderLeft: isSelectedDay ? '4px solid #1a8a7d' : isArrived ? '4px solid #22c55e' : '4px solid #e2e8f0',
+                    borderLeft: isSelectedDay ? '4px solid #1a8a7d' : isHandoffDay ? '4px solid #f59e0b' : isArrived ? '4px solid #22c55e' : '4px solid #e2e8f0',
                     backgroundColor: isSelectedDay ? '#f0fdf4' : 'white',
                     cursor: 'pointer'
                   }}
@@ -1520,7 +1556,7 @@ export default function DriverPortal({ driverMobile, onLogout }) {
                         ...styles.dayTag,
                         color: isSelectedDay ? '#1a8a7d' : '#64748b'
                       }}>
-                        DAY {day.day} · {day.dateStr} {isToday ? ' (TODAY)' : ''}
+                        DAY {day.day} · {day.dateStr} {isToday ? ' (TODAY)' : ''}{isHandoffDay ? ' 🔄 HANDOFF' : ''}
                       </span>
                       <h4 style={styles.dayCity}>{day.city}</h4>
                       {day.hotelName && (
@@ -1538,6 +1574,12 @@ export default function DriverPortal({ driverMobile, onLogout }) {
                               <span style={styles.arrivedTime}>{day.arrivedAt}</span>
                             )}
                           </div>
+                          <button
+                            onClick={() => handleUndoArrived(idx)}
+                            style={{ marginLeft: '6px', fontSize: '0.65rem', color: '#94a3b8', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}
+                          >
+                            Undo
+                          </button>
                         </div>
                       ) : (
                         <button
