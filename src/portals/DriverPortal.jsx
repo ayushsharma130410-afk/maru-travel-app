@@ -380,25 +380,39 @@ export default function DriverPortal({ driverMobile, onLogout }) {
     if (!code) return;
     setIsManualLoading(true);
     setLoadError('');
-
     const cleanMobile = String(driverMobile).replace(/\D/g, '');
-    const unsub = listenToTour(code, (fetchedTour) => {
-      unsub();
+    let unsub;
+    let handled = false;
+    try {
+      unsub = listenToTour(code, (fetchedTour) => {
+        if (handled) return;
+        handled = true;
+        
+        // Safely unsubscribe whether called synchronously or asynchronously
+        if (typeof unsub === 'function') unsub();
+        else setTimeout(() => typeof unsub === 'function' && unsub(), 0);
+
+        setIsManualLoading(false);
+        if (!fetchedTour) {
+          setLoadError(`Tour "${code}" not found. Please check the code.`);
+          return;
+        }
+        // Verify this driver is actually assigned to this tour
+        if (!isMobileAssignedToTour(fetchedTour, cleanMobile)) {
+          setLoadError(`Your mobile number is not assigned to tour "${code}". Please contact your operator.`);
+          return;
+        }
+        // All good — load the tour
+        setTourData({ ...fetchedTour, _manualLoad: true });
+        setActiveTourCode(code);
+        setLoadError('');
+      });
+    } catch (err) {
+      console.error(err);
       setIsManualLoading(false);
-      if (!fetchedTour) {
-        setLoadError(`Tour "${code}" not found. Please check the code.`);
-        return;
-      }
-      // Verify this driver is actually assigned to this tour
-      if (!isMobileAssignedToTour(fetchedTour, cleanMobile)) {
-        setLoadError(`Your mobile number is not assigned to tour "${code}". Please contact your operator.`);
-        return;
-      }
-      // All good — load the tour
-      setTourData({ ...fetchedTour, _manualLoad: true });
-      setActiveTourCode(code);
-      setLoadError('');
-    });
+      setLoadError('Error verifying tour code. Please try again.');
+    }
+
   }, [tourCodeInput, driverMobile, isMobileAssignedToTour]);
 
   // Helper date conversions
