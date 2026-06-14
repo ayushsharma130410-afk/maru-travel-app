@@ -206,33 +206,39 @@ export default function DriverPortal({ driverMobile, onLogout }) {
         });
 
         if (assignedTours.length > 0) {
-          // Prefer the earliest active tour (sorted by startDate)
-          assignedTours.sort((a, b) => (a.startDate || '').localeCompare(b.startDate || ''));
+          // Identify if a tour is already "Completed" for this specific driver.
+          const isTourCompletedForMe = (tour) => {
+             let completed = false;
+             if (Array.isArray(tour.itinerary)) {
+               const isMainDriver = mobileMatches(tour.driverMobile, cleanMobile);
+               const isOriginCalc = tour.itinerary.some(day => day?.interCityTransfer && mobileMatches(day.transferDriverMobile, cleanMobile));
+               if (!isMainDriver && isOriginCalc) {
+                  const originIdx = tour.itinerary.findIndex(day => day?.interCityTransfer && mobileMatches(day.transferDriverMobile, cleanMobile));
+                  if (originIdx !== -1 && tour.itinerary[originIdx].transferDepartureDone) {
+                     const destIdx = tour.itinerary.findIndex(day => day?.interCityTransfer && mobileMatches(day.destTransferDriverMobile, cleanMobile));
+                     if (destIdx === -1 || destIdx <= originIdx) {
+                        completed = true; // Fully done with this tour
+                     }
+                  }
+               }
+             }
+             return completed;
+          };
+
+          // Prefer active tours over completed tours. Tie-breaker: earliest startDate.
+          assignedTours.sort((a, b) => {
+             const aDone = isTourCompletedForMe(a);
+             const bDone = isTourCompletedForMe(b);
+             if (aDone && !bDone) return 1;
+             if (!aDone && bDone) return -1;
+             return (a.startDate || '').localeCompare(b.startDate || '');
+          });
+
           const activeTour = assignedTours[0];
 
-          // For origin transfer driver: hide once their leg is marked done
-          let hideTour = false;
-          if (Array.isArray(activeTour.itinerary)) {
-            const startD = new Date(activeTour.startDate || today);
-            const todayD = new Date(today);
-            const todayIndex = Math.floor((todayD - startD) / (1000 * 3600 * 24));
-            if (todayIndex >= 0) {
-              const currentDay = activeTour.itinerary[todayIndex];
-              if (currentDay && currentDay.interCityTransfer) {
-                const isOrigin = mobileMatches(currentDay.transferDriverMobile, cleanMobile);
-                if (isOrigin && currentDay.transferDepartureDone) hideTour = true;
-              }
-            }
-          }
-
-          if (hideTour) {
-            setTourData(null);
-            setActiveTourCode(null);
-            setLoadError(language === 'KO' ? '이 투어의 1구간이 완료되었습니다.' : 'Leg 1 Completed. Handover successful.');
-          } else {
-            setTourData(activeTour);
-            setActiveTourCode(activeTour.tourCode);
-          }
+          // We no longer hide the tour. We load it so the UI renders "Duty Completed" with an Undo button if it is done.
+          setTourData(activeTour);
+          setActiveTourCode(activeTour.tourCode);
         } else {
           // Only clear if we haven't manually loaded a tour
           setTourData(prev => {
@@ -606,6 +612,47 @@ export default function DriverPortal({ driverMobile, onLogout }) {
   const todayIsMyOriginTransferDay = isOriginTransferCalc &&
     !!(currentDay?.interCityTransfer) &&
     mobileMatches(currentDay.transferDriverMobile, cleanMobileCalc);
+
+  // ── EARLY RETURN: Leg 1 Duty Completed ─────────────────────────────────────────
+  // If Leg 1 driver has marked the drop-off as done, and they have no future pickup duties on this tour.
+  const isMyLeg1Done = isOriginTransferCalc && originTransferDayIndex !== -1 &&
+    !!tourData.itinerary?.[originTransferDayIndex]?.transferDepartureDone;
+
+  const hasFutureLeg2Duties = isDestTransferCalc && destTransferDayIndex > originTransferDayIndex;
+
+  const isLeg1DutyCompleted = !isMainDriver && isOriginTransferCalc && isMyLeg1Done && !hasFutureLeg2Duties;
+
+  if (isLeg1DutyCompleted) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', padding: '32px 20px', background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)', fontFamily: 'Inter, sans-serif' }}>
+        <img src="/maru_logo_transparent.png" alt="Maru Travel" style={{ width: '100px', marginBottom: '20px', opacity: 0.9 }} />
+        <div style={{ textAlign: 'center', padding: '28px 24px', maxWidth: '360px', background: 'white', borderRadius: '20px', boxShadow: '0 4px 32px rgba(0,0,0,0.10)' }}>
+          <div style={{ fontSize: '3rem', marginBottom: '10px' }}>✅</div>
+          <h2 style={{ color: '#166534', fontWeight: '800', fontSize: '1.2rem', marginBottom: '6px', lineHeight: '1.4' }}>
+            Duty Completed!
+          </h2>
+          <p style={{ color: '#15803d', fontSize: '0.9rem', lineHeight: '1.6', margin: '0 0 18px' }}>
+            You have successfully completed the drop-off for <strong>{tourData.tourName || tourData.tourCode}</strong>. Your leg of the journey is finished.
+          </p>
+          
+          <button
+            onClick={async () => {
+              if (confirm('Undo drop-off completion? This will reopen the tour activities and lock out the next driver.')) {
+                 await updateTourResource(activeTourCode, `itinerary/${originTransferDayIndex}/transferDepartureDone`, false);
+              }
+            }}
+            style={{ marginTop: '10px', background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', padding: '10px 16px', borderRadius: '10px', cursor: 'pointer', fontWeight: '700', fontSize: '0.85rem', width: '100%' }}
+          >
+            ↩️ Undo Drop-off
+          </button>
+
+          <button onClick={onLogout} style={{ marginTop: '18px', background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer', fontSize: '0.78rem', textDecoration: 'underline' }}>
+            ← Back to Login
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   // ── EARLY RETURN: Not yet on duty ─────────────────────────────────────────
   // Show an "Upcoming Assignment" screen instead of irrelevant activities.
