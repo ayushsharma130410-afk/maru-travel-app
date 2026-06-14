@@ -634,17 +634,6 @@ export default function DriverPortal({ driverMobile, onLogout }) {
           <p style={{ color: '#15803d', fontSize: '0.9rem', lineHeight: '1.6', margin: '0 0 18px' }}>
             You have successfully completed the drop-off for <strong>{tourData.tourName || tourData.tourCode}</strong>. Your leg of the journey is finished.
           </p>
-          
-          <button
-            onClick={async () => {
-              if (confirm('Undo drop-off completion? This will reopen the tour activities and lock out the next driver.')) {
-                 await updateTourResource(activeTourCode, `itinerary/${originTransferDayIndex}/transferDepartureDone`, false);
-              }
-            }}
-            style={{ marginTop: '10px', background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', padding: '10px 16px', borderRadius: '10px', cursor: 'pointer', fontWeight: '700', fontSize: '0.85rem', width: '100%' }}
-          >
-            ↩️ Undo Drop-off
-          </button>
 
           <button onClick={onLogout} style={{ marginTop: '18px', background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer', fontSize: '0.78rem', textDecoration: 'underline' }}>
             ← Back to Login
