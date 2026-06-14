@@ -536,31 +536,101 @@ export default function DriverPortal({ driverMobile, onLogout }) {
       ? tourData.itinerary[originTransferDayIndex]
       : currentDay;
 
-  const isMainDriver = !isOriginTransferCalc && !isDestTransferCalc && mobileMatches(tourData.driverMobile, cleanMobileCalc);
+  // isMainDriver = true even if they ALSO have a transfer leg (e.g. Deep is main driver AND leg-1 drop-off)
+  const isMainDriver = mobileMatches(tourData.driverMobile, cleanMobileCalc);
 
   // Debug log
   console.log('[DriverPortal] Role detection:', {
-    cleanMobileCalc,
-    isOriginTransferCalc, originTransferDayIndex,
-    isDestTransferCalc, destTransferDayIndex,
-    isMainDriver,
-    allDays: tourData.itinerary?.map(d => ({ day: d.day, city: d.city, interCity: d.interCityTransfer, leg1: d.transferDriverMobile, leg2: d.destTransferDriverMobile }))
+    cleanMobileCalc, isOriginTransferCalc, originTransferDayIndex,
+    isDestTransferCalc, destTransferDayIndex, isMainDriver, selectedDate,
   });
 
+  // ── ACTIVE DATE RANGE FOR TRANSFER DRIVERS ─────────────────────────────────
+  // Each leg/transfer driver is only "on duty" between their pick-up date and
+  // drop-off date. Outside that window they should NOT see another driver's day.
+  // e.g. Raj1: active from Khajuraho pickup day → Varanasi dropoff day.
+  //      Raj3: active from Varanasi pickup day → tour end.
+  //      Deep: isMainDriver=true so full tour range is kept.
+  let driverFirstActiveYYYYMMDD = tourStartYYYYMMDD;
+  let driverLastActiveYYYYMMDD  = tourEndYYYYMMDD;
 
-  // If driver 2 logs in, they only care about Destination activities (e.g. Airport Pickup).
-  // If driver 1 logs in, they only care about Origin activities (e.g. Hotel Dropoff).
+  if (!isMainDriver && isDestTransferCalc && destTransferDayIndex !== -1) {
+    const pd = tourData.itinerary[destTransferDayIndex]?.dateStr;
+    const c = pd ? tourStrToYYYYMMDD(pd) : null;
+    if (c) driverFirstActiveYYYYMMDD = c;
+  }
+  if (!isMainDriver && isOriginTransferCalc && originTransferDayIndex !== -1) {
+    const dd = tourData.itinerary[originTransferDayIndex]?.dateStr;
+    const c = dd ? tourStrToYYYYMMDD(dd) : null;
+    if (c) driverLastActiveYYYYMMDD = c;
+  }
+
+  // Is today before this driver's assignment start date?
+  const isBeforeDriverRange = !isMainDriver && (isDestTransferCalc || isOriginTransferCalc) &&
+    !!driverFirstActiveYYYYMMDD && selectedDate < driverFirstActiveYYYYMMDD;
+
+  // ── TODAY-SPECIFIC TRANSFER ROLE ────────────────────────────────────────────
+  // Determine what role (if any) this driver has specifically TODAY, not just globally.
+  // This prevents Raj1 (who will eventually drop off at Varanasi) from being treated
+  // as an "origin transfer driver" on days that are irrelevant to him.
+  const todayIsMyDestTransferDay = isDestTransferCalc &&
+    !!(currentDay?.interCityTransfer) &&
+    mobileMatches(currentDay.destTransferDriverMobile, cleanMobileCalc);
+
+  const todayIsMyOriginTransferDay = isOriginTransferCalc &&
+    !!(currentDay?.interCityTransfer) &&
+    mobileMatches(currentDay.transferDriverMobile, cleanMobileCalc);
+
+  // ── EARLY RETURN: Not yet on duty ─────────────────────────────────────────
+  // Show an "Upcoming Assignment" screen instead of irrelevant activities.
+  if (isBeforeDriverRange) {
+    const pickupDay = destTransferDayIndex !== -1 ? tourData.itinerary[destTransferDayIndex] : null;
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', padding: '32px 20px', background: 'linear-gradient(135deg, #f0f7ff 0%, #e8f4f8 100%)', fontFamily: 'Inter, sans-serif' }}>
+        <img src="/maru_logo_transparent.png" alt="Maru Travel" style={{ width: '100px', marginBottom: '20px', opacity: 0.9 }} />
+        <div style={{ textAlign: 'center', padding: '28px 24px', maxWidth: '360px', background: 'white', borderRadius: '20px', boxShadow: '0 4px 32px rgba(0,0,0,0.10)' }}>
+          <div style={{ fontSize: '3rem', marginBottom: '10px' }}>🕐</div>
+          <h2 style={{ color: '#073549', fontWeight: '800', fontSize: '1.05rem', marginBottom: '6px', lineHeight: '1.4' }}>
+            Your Assignment Starts On
+          </h2>
+          <div style={{ color: '#1a8a7d', fontSize: '1.4rem', fontWeight: '900', marginBottom: '14px' }}>
+            {pickupDay?.dateStr || driverFirstActiveYYYYMMDD}
+          </div>
+          <p style={{ color: '#64748b', fontSize: '0.84rem', lineHeight: '1.7', margin: '0 0 18px' }}>
+            You are assigned to pick up clients at{' '}
+            <strong style={{ color: '#073549' }}>{pickupDay?.transferDestination || 'your destination'}</strong>{' '}
+            {pickupDay?.transport === 'By Flight' ? 'Airport ✈️' : 'Railway Station 🚆'}.
+            {pickupDay?.flightNo && <><br /><strong>Flight: {pickupDay.flightNo}</strong></>}
+            {pickupDay?.trainNo && <><br /><strong>Train: {pickupDay.trainNo}</strong></>}
+            <br />Please check back on your assignment date.
+          </p>
+          <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '12px', padding: '14px', color: '#166534', fontSize: '0.82rem', fontWeight: '600', lineHeight: '1.8', textAlign: 'left' }}>
+            <div>🗺️ <strong>Tour:</strong> {tourData.tourName || tourData.tourCode}</div>
+            <div>📅 <strong>Period:</strong> {tourData.startDate} → {tourData.endDate}</div>
+            {pickupDay?.transferOrigin && <div>📍 <strong>Pickup From:</strong> {pickupDay.transferDestination}</div>}
+          </div>
+          <button onClick={onLogout} style={{ marginTop: '18px', background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer', fontSize: '0.78rem', textDecoration: 'underline' }}>
+            ← Back to Login
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── ACTIVITY COMPUTATION ──────────────────────────────────────────────────
   let rawActivities = (currentDay.activitiesList || []).map((act, idx) => ({ ...act, originalIndex: idx }));
-  
-  // Inject explicit InterCity transfer tasks using transferSourceDay (handles both same-day and next-day arrival)
-  const transferActive = isOriginTransferCalc || isDestTransferCalc;
-  if (transferActive) {
-    const transportMode = transferSourceDay.transport === 'By Flight' ? 'Airport ✈️' : 'Railway Station 🚆';
-    const travelDetail = transferSourceDay.transport === 'By Flight' ? transferSourceDay.flightNo : transferSourceDay.trainNo;
+
+  // Inject synthetic transfer tasks ONLY on the EXACT matching transfer day,
+  // not on every day the driver has a global transfer role.
+  if (todayIsMyOriginTransferDay || todayIsMyDestTransferDay) {
+    const srcDay = todayIsMyDestTransferDay
+      ? tourData.itinerary?.[destTransferDayIndex]
+      : tourData.itinerary?.[originTransferDayIndex];
+    const transportMode = srcDay?.transport === 'By Flight' ? 'Airport ✈️' : 'Railway Station 🚆';
+    const travelDetail = srcDay?.transport === 'By Flight' ? srcDay.flightNo : srcDay.trainNo;
     const detailStr = travelDetail ? `(${travelDetail})` : '';
 
-    if (isOriginTransferCalc) {
-      // Driver 1: Drop-off task at end of their shift — uses current day data
+    if (todayIsMyOriginTransferDay) {
       rawActivities.push({
         isSyntheticTransfer: true,
         originalIndex: 998,
@@ -571,30 +641,30 @@ export default function DriverPortal({ driverMobile, onLogout }) {
         status: currentDay.transferDepartureDone ? 'completed' : 'pending'
       });
     }
-
-    if (isDestTransferCalc) {
-      // Driver 2: Pick-up task at the START — uses transferSourceDay (which may be previous day)
+    if (todayIsMyDestTransferDay) {
+      const dSrc = tourData.itinerary?.[destTransferDayIndex];
       rawActivities.unshift({
         isSyntheticTransfer: true,
         originalIndex: 999,
         time: 'TBD',
-        title: `Pick-up from ${transferSourceDay.transferDestination || currentDay.city || 'Destination'} ${transportMode}`,
-        desc: `Pick up clients arriving via ${transferSourceDay.transport || 'Transfer'} ${detailStr}. Transfer from ${transferSourceDay.transferOrigin || '—'} → ${transferSourceDay.transferDestination || currentDay.city || '—'}.`,
+        title: `Pick-up from ${dSrc?.transferDestination || currentDay.city || 'Destination'} ${transportMode}`,
+        desc: `Pick up clients arriving via ${dSrc?.transport || 'Transfer'} ${detailStr}. From ${dSrc?.transferOrigin || '—'} → ${dSrc?.transferDestination || currentDay.city || '—'}.`,
         cityTag: 'Destination',
-        status: transferSourceDay.transferArrivalDone ? 'completed' : 'pending'
+        status: dSrc?.transferArrivalDone ? 'completed' : 'pending'
       });
     }
   }
 
+  // Filter based on TODAY's role — NOT global role — so Raj1 in the middle of
+  // his active period sees ALL of that day's activities, not just Destination ones.
   const driverActivitiesWithIndex = rawActivities.filter(act => {
-    if (isOriginTransferCalc) {
-      return act.cityTag !== 'Destination'; // Show Origin and untagged (assumed origin)
+    if (todayIsMyOriginTransferDay && !todayIsMyDestTransferDay) {
+      return act.cityTag !== 'Destination';
     }
-    if (isDestTransferCalc) {
-      // For DEEP: show synthetic pickup task + any Destination-tagged activities in current day
+    if (todayIsMyDestTransferDay && !todayIsMyOriginTransferDay) {
       return act.cityTag === 'Destination' || act.isSyntheticTransfer;
     }
-    return true; // Main driver sees all
+    return true; // Regular day or main driver: show everything
   });
 
   const nextActivity = driverActivitiesWithIndex.find(act => act.status !== 'completed') || driverActivitiesWithIndex[0] || {};
