@@ -2286,9 +2286,24 @@ export default function OperatorPortal({ onLogout }) {
                               <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px dashed #bfdbfe', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                                 <span style={{ fontSize: '0.8rem', fontWeight: '700', color: '#1e3a8a' }}>Origin Leg Departure Status:</span>
                                 {currentDayItinerary.transferDepartureDone ? (
-                                  <span style={{ fontSize: '0.8rem', fontWeight: '800', color: '#166534', background: '#dcfce7', padding: '4px 10px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                    <CheckCircle2 size={14} /> Completed
-                                  </span>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <span style={{ fontSize: '0.8rem', fontWeight: '800', color: '#166534', background: '#dcfce7', padding: '4px 10px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                      <CheckCircle2 size={14} /> Completed
+                                    </span>
+                                    <button
+                                      onClick={async () => {
+                                        if (confirm(`Undo Leg 1 Departure Completion? This will restore the drop-off task for ${currentDayItinerary.transferDriverName || 'Origin Driver'} and hide the tour for ${currentDayItinerary.destTransferDriverName || 'Leg 2 Driver'}.`)) {
+                                          const updatedItinerary = tour.itinerary.map((d, i) =>
+                                            i === dayIndex ? { ...d, transferDepartureDone: false } : d
+                                          );
+                                          await updateTour(tour.tourCode, { itinerary: updatedItinerary });
+                                        }
+                                      }}
+                                      style={{ padding: '4px 8px', backgroundColor: '#FEF2F2', color: '#DC2626', border: '1px solid #FECACA', borderRadius: '6px', fontSize: '0.7rem', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                    >
+                                      ↩️ Undo
+                                    </button>
+                                  </div>
                                 ) : (
                                   <button
                                     onClick={async () => {
@@ -3010,6 +3025,30 @@ export default function OperatorPortal({ onLogout }) {
           // Compile markers for LeafletMap
           const activeMarkers = [];
           activeToursList.forEach(tour => {
+            const nowIST = new Date(Date.now() + (5.5 * 60 * 60 * 1000));
+            const todayStr = nowIST.toISOString().split('T')[0];
+            const startDateObj = new Date(tour.startDate);
+            const todayDateObj = new Date(todayStr);
+            const dayIndex = Math.floor((todayDateObj - startDateObj) / (1000 * 3600 * 24));
+            const currentDayItinerary = tour.itinerary?.[dayIndex] || null;
+
+            let activeDriverName = tour.driverName || 'Not Assigned';
+            let activeDriverType = 'Main Driver';
+
+            if (currentDayItinerary?.interCityTransfer) {
+              if (currentDayItinerary.transferDepartureDone) {
+                if (currentDayItinerary.destTransferDriverName) {
+                  activeDriverName = currentDayItinerary.destTransferDriverName;
+                  activeDriverType = 'Leg 2 Dest Driver';
+                }
+              } else {
+                if (currentDayItinerary.transferDriverName) {
+                  activeDriverName = currentDayItinerary.transferDriverName;
+                  activeDriverType = 'Leg 1 Origin Driver';
+                }
+              }
+            }
+
             const locs = liveLocations[tour.tourCode] || {};
             const driverLoc = normalizeTrackingLocation(locs.driver);
             const guideLoc = normalizeTrackingLocation(locs.guide);
@@ -3020,7 +3059,7 @@ export default function OperatorPortal({ onLogout }) {
                 id: `${tour.tourCode}_driver`,
                 lat: driverLoc.lat,
                 lng: driverLoc.lng,
-                title: `${tour.driverName || 'Driver'} (Driver - ${tour.tourCode})`,
+                title: `${activeDriverName} (${activeDriverType} - ${tour.tourCode})`,
                 subtitle: `${tour.tourName} | status: ${driverGps.badgeText}`,
                 type: 'driver',
                 status: driverGps.status
@@ -3065,6 +3104,30 @@ export default function OperatorPortal({ onLogout }) {
                 )}
 
                 {activeToursList.map(tour => {
+                  const nowIST = new Date(Date.now() + (5.5 * 60 * 60 * 1000));
+                  const todayStr = nowIST.toISOString().split('T')[0];
+                  const startDateObj = new Date(tour.startDate);
+                  const todayDateObj = new Date(todayStr);
+                  const dayIndex = Math.floor((todayDateObj - startDateObj) / (1000 * 3600 * 24));
+                  const currentDayItinerary = tour.itinerary?.[dayIndex] || null;
+
+                  let activeDriverName = tour.driverName || 'Not Assigned';
+                  let activeDriverType = 'Main Driver';
+
+                  if (currentDayItinerary?.interCityTransfer) {
+                    if (currentDayItinerary.transferDepartureDone) {
+                      if (currentDayItinerary.destTransferDriverName) {
+                        activeDriverName = currentDayItinerary.destTransferDriverName;
+                        activeDriverType = 'Leg 2 Dest Driver';
+                      }
+                    } else {
+                      if (currentDayItinerary.transferDriverName) {
+                        activeDriverName = currentDayItinerary.transferDriverName;
+                        activeDriverType = 'Leg 1 Origin Driver';
+                      }
+                    }
+                  }
+
                   const locs = liveLocations[tour.tourCode] || {};
                   const driverLoc = normalizeTrackingLocation(locs.driver);
                   const guideLoc = normalizeTrackingLocation(locs.guide);
@@ -3089,23 +3152,26 @@ export default function OperatorPortal({ onLogout }) {
                         <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
                             <Car size={16} color="#059669" />
-                            <span 
-                              style={{ 
-                                fontSize: '0.8rem', 
-                                fontWeight: '800', 
-                                color: '#0f172a',
-                                cursor: driverLoc ? 'pointer' : 'default',
-                                textDecoration: driverLoc ? 'underline' : 'none'
-                              }}
-                              onClick={() => {
-                                if (driverLoc) {
-                                  window.open(`https://maps.google.com/?q=${driverLoc.lat},${driverLoc.lng}`, '_blank');
-                                }
-                              }}
-                              title={driverLoc ? "Hovered: Click to open live location on Google Maps" : ""}
-                            >
-                              Driver: {tour.driverName || 'Not Assigned'}
-                            </span>
+                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                              <span 
+                                style={{ 
+                                  fontSize: '0.8rem', 
+                                  fontWeight: '800', 
+                                  color: '#0f172a',
+                                  cursor: driverLoc ? 'pointer' : 'default',
+                                  textDecoration: driverLoc ? 'underline' : 'none'
+                                }}
+                                onClick={() => {
+                                  if (driverLoc) {
+                                    window.open(`https://maps.google.com/?q=${driverLoc.lat},${driverLoc.lng}`, '_blank');
+                                  }
+                                }}
+                                title={driverLoc ? "Hovered: Click to open live location on Google Maps" : ""}
+                              >
+                                {activeDriverName}
+                              </span>
+                              <span style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: '700' }}>({activeDriverType})</span>
+                            </div>
                           </div>
                           <span style={{ fontSize: '0.65rem', fontWeight: '800', background: driverGps.badgeBg, color: driverGps.badgeColor, padding: '3px 8px', borderRadius: '12px', display: 'inline-block', marginBottom: '8px' }}>
                             {driverGps.badgeText}

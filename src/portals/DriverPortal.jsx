@@ -678,8 +678,74 @@ export default function DriverPortal({ driverMobile, onLogout }) {
     return true; // Regular day or main driver: show everything
   });
 
-  const nextActivity = driverActivitiesWithIndex.find(act => act.status !== 'completed') || driverActivitiesWithIndex[0] || {};
-  
+  // ── GLOBAL NEXT ACTIVITY (For the Green Card) ─────────────────────────────
+  // Scan all days in the active range to find the FIRST uncompleted activity.
+  let globalNextActivity = null;
+  let globalNextActivityDateStr = null;
+
+  if (!isBeforeDriverRange && tourData?.itinerary) {
+    for (let i = 0; i < tourData.itinerary.length; i++) {
+      const day = tourData.itinerary[i];
+      const dayYYYY = tourStrToYYYYMMDD(day.dateStr);
+      if (!dayYYYY) continue;
+
+      if (driverFirstActiveYYYYMMDD && dayYYYY < driverFirstActiveYYYYMMDD) continue;
+      if (driverLastActiveYYYYMMDD && dayYYYY > driverLastActiveYYYYMMDD) continue;
+
+      const dayIsDestTransfer = isDestTransferCalc && day.interCityTransfer && mobileMatches(day.destTransferDriverMobile, cleanMobileCalc);
+      const dayIsOriginTransfer = isOriginTransferCalc && day.interCityTransfer && mobileMatches(day.transferDriverMobile, cleanMobileCalc);
+
+      let dayActs = (day.activitiesList || []).map((act, idx) => ({ ...act, originalIndex: idx }));
+
+      if (dayIsOriginTransfer || dayIsDestTransfer) {
+        const srcDay = dayIsDestTransfer ? tourData.itinerary?.[destTransferDayIndex] : tourData.itinerary?.[originTransferDayIndex];
+        const transportMode = srcDay?.transport === 'By Flight' ? 'Airport ✈️' : 'Railway Station 🚆';
+        const travelDetail = srcDay?.transport === 'By Flight' ? srcDay.flightNo : srcDay.trainNo;
+        const detailStr = travelDetail ? `(${travelDetail})` : '';
+
+        if (dayIsOriginTransfer) {
+          dayActs.push({
+            isSyntheticTransfer: true,
+            originalIndex: 998,
+            time: 'TBD',
+            title: `Drop-off at ${day.transferOrigin || 'Origin'} ${transportMode}`,
+            desc: `Drop off clients for their onward journey ${detailStr}.`,
+            cityTag: 'Origin',
+            status: day.transferDepartureDone ? 'completed' : 'pending'
+          });
+        }
+        if (dayIsDestTransfer) {
+          const dSrc = tourData.itinerary?.[destTransferDayIndex];
+          dayActs.unshift({
+            isSyntheticTransfer: true,
+            originalIndex: 999,
+            time: 'TBD',
+            title: `Pick-up from ${dSrc?.transferDestination || day.city || 'Destination'} ${transportMode}`,
+            desc: `Pick up clients arriving via ${dSrc?.transport || 'Transfer'} ${detailStr}. From ${dSrc?.transferOrigin || '—'} → ${dSrc?.transferDestination || day.city || '—'}.`,
+            cityTag: 'Destination',
+            status: dSrc?.transferArrivalDone ? 'completed' : 'pending'
+          });
+        }
+      }
+
+      const filteredDayActs = dayActs.filter(act => {
+        if (dayIsOriginTransfer && !dayIsDestTransfer) return act.cityTag !== 'Destination';
+        if (dayIsDestTransfer && !dayIsOriginTransfer) return act.cityTag === 'Destination' || act.isSyntheticTransfer;
+        return true;
+      });
+
+      const uncompleted = filteredDayActs.find(act => act.status !== 'completed');
+      if (uncompleted) {
+        globalNextActivity = uncompleted;
+        globalNextActivityDateStr = day.dateStr;
+        break;
+      }
+    }
+  }
+
+  // Use the global next activity for the green card. If all done, default to the first activity of the selected day just so it doesn't break UI.
+  const nextActivity = globalNextActivity || driverActivitiesWithIndex[0] || {};
+
   // Dummy data for visual completion
   const driverDetails = {
     name: tourData.driverName || 'Not Assigned',
