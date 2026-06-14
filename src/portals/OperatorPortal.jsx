@@ -3035,16 +3035,35 @@ export default function OperatorPortal({ onLogout }) {
             let activeDriverName = tour.driverName || 'Not Assigned';
             let activeDriverType = 'Main Driver';
 
-            if (currentDayItinerary?.interCityTransfer) {
-              if (currentDayItinerary.transferDepartureDone) {
-                if (currentDayItinerary.destTransferDriverName) {
-                  activeDriverName = currentDayItinerary.destTransferDriverName;
-                  activeDriverType = 'Leg 2 Dest Driver';
-                }
-              } else {
-                if (currentDayItinerary.transferDriverName) {
-                  activeDriverName = currentDayItinerary.transferDriverName;
-                  activeDriverType = 'Leg 1 Origin Driver';
+            if (tour.itinerary && tour.itinerary.length > 0) {
+              for (let i = 0; i < tour.itinerary.length; i++) {
+                const day = tour.itinerary[i];
+                if (day.interCityTransfer) {
+                  if (dayIndex < i) {
+                    if (day.transferDriverName) {
+                      activeDriverName = day.transferDriverName;
+                      activeDriverType = 'Leg 1 (Origin)';
+                    }
+                    break;
+                  } else if (dayIndex === i) {
+                    if (day.transferDepartureDone) {
+                      if (day.destTransferDriverName) {
+                        activeDriverName = day.destTransferDriverName;
+                        activeDriverType = 'Leg 2 (Dest)';
+                      }
+                    } else {
+                      if (day.transferDriverName) {
+                        activeDriverName = day.transferDriverName;
+                        activeDriverType = 'Leg 1 (Origin)';
+                      }
+                    }
+                    break;
+                  } else {
+                    if (day.destTransferDriverName) {
+                      activeDriverName = day.destTransferDriverName;
+                      activeDriverType = 'Leg 2 (Dest)';
+                    }
+                  }
                 }
               }
             }
@@ -3114,16 +3133,35 @@ export default function OperatorPortal({ onLogout }) {
                   let activeDriverName = tour.driverName || 'Not Assigned';
                   let activeDriverType = 'Main Driver';
 
-                  if (currentDayItinerary?.interCityTransfer) {
-                    if (currentDayItinerary.transferDepartureDone) {
-                      if (currentDayItinerary.destTransferDriverName) {
-                        activeDriverName = currentDayItinerary.destTransferDriverName;
-                        activeDriverType = 'Leg 2 Dest Driver';
-                      }
-                    } else {
-                      if (currentDayItinerary.transferDriverName) {
-                        activeDriverName = currentDayItinerary.transferDriverName;
-                        activeDriverType = 'Leg 1 Origin Driver';
+                  if (tour.itinerary && tour.itinerary.length > 0) {
+                    for (let i = 0; i < tour.itinerary.length; i++) {
+                      const day = tour.itinerary[i];
+                      if (day.interCityTransfer) {
+                        if (dayIndex < i) {
+                          if (day.transferDriverName) {
+                            activeDriverName = day.transferDriverName;
+                            activeDriverType = 'Leg 1 (Origin)';
+                          }
+                          break;
+                        } else if (dayIndex === i) {
+                          if (day.transferDepartureDone) {
+                            if (day.destTransferDriverName) {
+                              activeDriverName = day.destTransferDriverName;
+                              activeDriverType = 'Leg 2 (Dest)';
+                            }
+                          } else {
+                            if (day.transferDriverName) {
+                              activeDriverName = day.transferDriverName;
+                              activeDriverType = 'Leg 1 (Origin)';
+                            }
+                          }
+                          break;
+                        } else {
+                          if (day.destTransferDriverName) {
+                            activeDriverName = day.destTransferDriverName;
+                            activeDriverType = 'Leg 2 (Dest)';
+                          }
+                        }
                       }
                     }
                   }

@@ -591,9 +591,9 @@ export default function DriverPortal({ driverMobile, onLogout }) {
     !!tourData.itinerary?.[destTransferDayIndex]?.transferDepartureDone;
 
   // Is today before this driver's assignment start date OR is leg-1 not yet done?
-  const isWaitingForLeg1 = !isMainDriver && isDestTransferCalc && !leg1Completed;
-  const isTooEarly = !isMainDriver && isDestTransferCalc && selectedDate < driverFirstActiveYYYYMMDD;
-  const isBeforeDriverRange = isWaitingForLeg1 || isTooEarly;
+  // The user requested that if leg 1 is marked done, leg 2 opens IMMEDIATELY, without waiting for the date.
+  // And if it's undone, it locks again. So we strictly use leg1Completed as the lock.
+  const isBeforeDriverRange = !isMainDriver && isDestTransferCalc && !leg1Completed;
 
   // ── TODAY-SPECIFIC TRANSFER ROLE ────────────────────────────────────────────
   // Determine what role (if any) this driver has specifically TODAY, not just globally.
