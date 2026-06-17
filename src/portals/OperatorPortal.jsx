@@ -20,7 +20,7 @@ import {
 const MEAL_PLAN_OPTIONS = [
   'No Meal',
   'Breakfast Only (CP)',
-  'Breakfast & Lunch (AP Lunch)',
+  'Breakfast & Lunch (MAP LUNCH)',
   'Breakfast & Dinner (MAP)',
   'Breakfast, Lunch & Dinner (AP)',
   'Lunch Only',
@@ -799,7 +799,7 @@ export default function OperatorPortal({ onLogout }) {
         { city: 'New Delhi', activities: 'New DEL SS(Akshardham, President palace, Parliament house) Tandoori Lunch at Nineteenth Hall Noida) then go to AGRA and proceed to sight of Taj Mahal Sunset view Dinner & overnight at Hotel', transport: 'By Surface', mealPlan: 'Lunch & Dinner', hotelName: '' },
         { city: 'Agra', activities: 'AGR SS( Agra fort) Fatehpur Sikri, Lunch at Lake View restaurant(Sikri)and move to JAI Dinner & Overnight at Hotel', transport: 'By Surface', mealPlan: 'Lunch & Dinner', hotelName: '' },
         { city: 'Jaipur', activities: 'Buffet breakfast . Full day JAI SS (Amber Fort-Jeep, Hawa Mahal, City palace, Virla Mandir), Hena, Lassi Rickshaw Ride Lunch & Dinner & Overnight at Hotel', transport: 'By Surface', mealPlan: 'Breakfast, Lunch & Dinner (AP)', hotelName: '' },
-        { city: 'New Delhi', activities: 'Packed breakfast at 05:30 am . JAI/DEL by flight- AI 1834 – 0830/0935 DEL SS (Agrasen ki baoli, India Gate, Gandi Smriti, Raj Ghat, Qutab Minar), Lunch at Gung green park and drop to Airport by KE 498 19:40 hrs.', transport: 'By Flight', mealPlan: 'Breakfast & Lunch (AP Lunch)', hotelName: '' },
+        { city: 'New Delhi', activities: 'Packed breakfast at 05:30 am . JAI/DEL by flight- AI 1834 – 0830/0935 DEL SS (Agrasen ki baoli, India Gate, Gandi Smriti, Raj Ghat, Qutab Minar), Lunch at Gung green park and drop to Airport by KE 498 19:40 hrs.', transport: 'By Flight', mealPlan: 'Breakfast & Lunch (MAP LUNCH)', hotelName: '' },
       ]
     },
     {
@@ -813,7 +813,7 @@ export default function OperatorPortal({ onLogout }) {
         { city: 'Khajuraho', activities: 'Train for Jhansi Shatabadi Express (0755-1045)-Orcha SS-Khajuraho, Yoga Lunch at Amar Palace Orcha Dinner & Overnight at Hotel', transport: 'By Train', mealPlan: 'Breakfast, Lunch & Dinner (AP)', hotelName: '' },
         { city: 'Varanasi', activities: 'SS(East & West Temples), Flight for VNS by 6E2379(1145-1250), Chai, Lassi, Rickshaw, Pooja Lunch & Dinner at Hotel.', transport: 'By Flight', mealPlan: 'Breakfast, Lunch & Dinner (AP)', hotelName: '' },
         { city: 'New Delhi', activities: 'Sunrise by boat on Ganga, SS(Sarnath, Museum), Flight for DEL by 6E5040(1555-1735) Lunch at Sarnath Varanasi and Dinner at Local Restaurant Aero city Delhi and Overnight at Hotel', transport: 'By Flight', mealPlan: 'Breakfast, Lunch & Dinner (AP)', hotelName: '' },
-        { city: 'New Delhi', activities: 'SS(Akshardham, India Gate, Gandi Smriti, President palace, Parliament house, Qutub Minar), Korean lunch at Gung Later drop at airport DEL/ICN by KE498(1950- )', transport: 'By Surface', mealPlan: 'Breakfast & Lunch (AP Lunch)', hotelName: '' },
+        { city: 'New Delhi', activities: 'SS(Akshardham, India Gate, Gandi Smriti, President palace, Parliament house, Qutub Minar), Korean lunch at Gung Later drop at airport DEL/ICN by KE498(1950- )', transport: 'By Surface', mealPlan: 'Breakfast & Lunch (MAP LUNCH)', hotelName: '' },
       ]
     },
     {
@@ -827,7 +827,7 @@ export default function OperatorPortal({ onLogout }) {
         { city: 'Agra', activities: 'After morning buffet Breakfast. Full day sightseeing of Taj Mahal & Agra Fort sightseeing.  Lunch at hotel.  Dinner &   Overnight at hotel', transport: 'By Surface', mealPlan: 'Breakfast, Lunch & Dinner (AP)', hotelName: '' },
         { city: 'Jaipur', activities: 'After Buffet breakfast , checkout-  Drive to Jaipur   On arrival checkin hotel & Lunch at Jaipur Hotel. Proceed Sightseeing  City palace , Hawa Mahal & Albert hall ( Outside photo stop), Amer Fort by Jeep,  Henna/ lassi . Dinner & Overnight at Hotel', transport: 'By Surface', mealPlan: 'Breakfast, Lunch & Dinner (AP)', hotelName: '' },
         { city: 'New Delhi', activities: 'After Buffet breakfast , checkout. -  Drive to Delhi Enroute Sightseeing Birla Temple,  Jal Mahal. Continue drive to Delhi. On arrival , Korea Lunch at Gung restaurant Gurgaon/Green Park. Afternoon city tour including Sikh Temple , India Gate , President house, Government Buildings. Dinner at Lazeez Affaire Checkin/ Overnight at Hotel.', transport: 'By Surface', mealPlan: 'Breakfast, Lunch & Dinner (AP)', hotelName: '' },
-        { city: 'New Delhi', activities: 'After morning buffet Breakfast. Full day sightseeing tour including Gandhi Smriti, Raj Ghat, Step well, Akshardham Temple & Lotus Temple. Indian Tandoori Lunch at Connaught Club House, Later if time permits visit to local Shopping shop of Souvenir. Departure to Delhi airport for flight for onward destination to Home.', transport: 'By Flight', mealPlan: 'Breakfast & Lunch (AP Lunch)', hotelName: '' },
+        { city: 'New Delhi', activities: 'After morning buffet Breakfast. Full day sightseeing tour including Gandhi Smriti, Raj Ghat, Step well, Akshardham Temple & Lotus Temple. Indian Tandoori Lunch at Connaught Club House, Later if time permits visit to local Shopping shop of Souvenir. Departure to Delhi airport for flight for onward destination to Home.', transport: 'By Flight', mealPlan: 'Breakfast & Lunch (MAP LUNCH)', hotelName: '' },
       ]
     }
   ];
@@ -3703,7 +3703,7 @@ export default function OperatorPortal({ onLogout }) {
                       const isMAP = mp.includes('map') || (mp.includes('breakfast') && mp.includes('dinner') && !mp.includes('lunch'));
                       const isAP = (mp.includes('ap') && mp.includes('lunch') && mp.includes('dinner')) || mp.includes('breakfast, lunch & dinner');
                       const isCP = mp.includes('cp') || mp.includes('breakfast only');
-                      const isAPLunch = mp.includes('MAP LUNCH ') || (mp.includes('breakfast') && mp.includes('lunch') && !mp.includes('dinner'));
+                      const isAPLunch = mp.includes('MAP LUNCH') || (mp.includes('breakfast') && mp.includes('lunch') && !mp.includes('dinner'));
                       if (!isMAP && !isAP && !isCP && !isAPLunch) return null;
                       const checkInDay = day.dateStr || `Day ${day.day}`;
                       const nextDayDate = day.dateStr ? (() => {
