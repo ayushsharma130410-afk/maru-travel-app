@@ -279,16 +279,30 @@ export default function OperatorPortal({ onLogout }) {
     };
 
     const dateMMDD = getMMDD(printTour.startDate || '');
-    const firstWordTour = (printTour.tourName || '').split(' ')[0].toUpperCase();
-    setVoucherGrpName(`MT ${firstWordTour} GROUP ${dateMMDD}`);
-    setVoucherFileCode(`KRG${dateMMDD}/ MT`);
+    const fullTourTitle = (printTour.tourName || '').toUpperCase();
+    setVoucherGrpName(`MT ${fullTourTitle} GROUP ${dateMMDD}`);
+    // File code: last 4 chars of tourCode + year of startDate
+    const tourCode = (printTour.tourCode || '');
+    const last4 = tourCode.slice(-4);
+    const publishYear = printTour.startDate ? new Date(printTour.startDate).getFullYear() : new Date().getFullYear();
+    setVoucherFileCode(`${last4}${publishYear}/ MT`);
     
-    const pax = printTour.pax || 2;
-    const roomsCount = Math.ceil(pax / 2);
-    const roomsStr = String(roomsCount).padStart(2, '0');
-    setVoucherRoomType(`${roomsStr} Twin standard rooms`);
+    // Build room type string from actual room requirements
+    const roomParts = [];
+    const dbl = parseInt(printTour.doubleRooms) || 0;
+    const twin = parseInt(printTour.twinRooms) || 0;
+    const sgl = parseInt(printTour.singleRooms) || 0;
+    const trpl = parseInt(printTour.tripleRooms) || 0;
+    if (dbl > 0) roomParts.push(`${String(dbl).padStart(2,'0')} Double room${dbl > 1 ? 's' : ''}`);
+    if (twin > 0) roomParts.push(`${String(twin).padStart(2,'0')} Twin room${twin > 1 ? 's' : ''}`);
+    if (sgl > 0) roomParts.push(`${String(sgl).padStart(2,'0')} Single room${sgl > 1 ? 's' : ''}`);
+    if (trpl > 0) roomParts.push(`${String(trpl).padStart(2,'0')} Triple room${trpl > 1 ? 's' : ''}`);
+    const roomTypeStr = roomParts.length > 0 ? roomParts.join(' + ') : `${String(Math.ceil((printTour.pax || 2) / 2)).padStart(2,'0')} Twin standard rooms`;
+    setVoucherRoomType(roomTypeStr);
     
-    setVoucherRoomNote('Twin should be proper twins with separate beds');
+    // Only add twin note if twin rooms are included
+    const hasTwin = twin > 0;
+    setVoucherRoomNote(hasTwin ? 'Twin should be proper twins with separate beds' : '');
     setVoucherNote('Confirmation No. Awaiting');
     setVoucherCheckInTime('14:00');
     setVoucherCheckOutTime('09:00');
@@ -1893,6 +1907,38 @@ export default function OperatorPortal({ onLogout }) {
                         </select>
                       </div>
                     </div>
+
+                    {/* Meal Plan Info Box */}
+                    {(() => {
+                      const mp = (day.mealPlan || '').toLowerCase();
+                      const isMAP = mp.includes('map') || (mp.includes('breakfast') && mp.includes('dinner') && !mp.includes('lunch'));
+                      const isAP = mp.includes('ap') && mp.includes('lunch') && mp.includes('dinner') || mp.includes('breakfast, lunch & dinner');
+                      const isCP = mp.includes('cp') || (mp.includes('breakfast only'));
+                      const isAPLunch = mp.includes('ap lunch') || (mp.includes('breakfast') && mp.includes('lunch') && !mp.includes('dinner'));
+                      if (!isMAP && !isAP && !isCP && !isAPLunch) return null;
+                      const checkInDay = day.dateStr || `Day ${day.day}`;
+                      const nextDayDate = day.dateStr ? (() => {
+                        const d = new Date(day.dateStr.split('-').reverse().join('-'));
+                        d.setDate(d.getDate() + 1);
+                        return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-');
+                      })() : `Day ${(day.day || 0) + 1}`;
+                      let checkInMeals, checkOutMeals;
+                      if (isAP) { checkInMeals = 'Check in + Lunch + Dinner'; checkOutMeals = 'Breakfast + Check Out'; }
+                      else if (isMAP) { checkInMeals = 'Check in + Dinner'; checkOutMeals = 'Breakfast + Check Out'; }
+                      else if (isAPLunch) { checkInMeals = 'Check in + Lunch'; checkOutMeals = 'Check Out'; }
+                      else { checkInMeals = 'Check in'; checkOutMeals = 'Breakfast + Check Out'; }
+                      return (
+                        <div style={{ marginTop: '10px', padding: '10px 14px', background: 'linear-gradient(135deg, #fffbeb, #fef3c7)', border: '1px solid #fcd34d', borderRadius: '10px', fontSize: '0.8rem' }}>
+                          <div style={{ fontWeight: '700', color: '#92400e', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            🍽️ Meal Breakdown — {day.mealPlan}
+                          </div>
+                          <div style={{ color: '#78350f', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                            <div>📅 <strong>{checkInDay}:</strong> {checkInMeals}</div>
+                            <div>📅 <strong>{nextDayDate}:</strong> {checkOutMeals}</div>
+                          </div>
+                        </div>
+                      );
+                    })()}
 
                     {day.transport === 'By Flight' && (
                       <div style={{ marginTop: '12px' }}>
@@ -3650,6 +3696,38 @@ export default function OperatorPortal({ onLogout }) {
                         </select>
                       </div>
                     </div>
+
+                    {/* Meal Plan Info Box */}
+                    {(() => {
+                      const mp = (day.mealPlan || '').toLowerCase();
+                      const isMAP = mp.includes('map') || (mp.includes('breakfast') && mp.includes('dinner') && !mp.includes('lunch'));
+                      const isAP = (mp.includes('ap') && mp.includes('lunch') && mp.includes('dinner')) || mp.includes('breakfast, lunch & dinner');
+                      const isCP = mp.includes('cp') || mp.includes('breakfast only');
+                      const isAPLunch = mp.includes('ap lunch') || (mp.includes('breakfast') && mp.includes('lunch') && !mp.includes('dinner'));
+                      if (!isMAP && !isAP && !isCP && !isAPLunch) return null;
+                      const checkInDay = day.dateStr || `Day ${day.day}`;
+                      const nextDayDate = day.dateStr ? (() => {
+                        const d = new Date(day.dateStr.split('-').reverse().join('-'));
+                        d.setDate(d.getDate() + 1);
+                        return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-');
+                      })() : `Day ${(day.day || 0) + 1}`;
+                      let checkInMeals, checkOutMeals;
+                      if (isAP) { checkInMeals = 'Check in + Lunch + Dinner'; checkOutMeals = 'Breakfast + Check Out'; }
+                      else if (isMAP) { checkInMeals = 'Check in + Dinner'; checkOutMeals = 'Breakfast + Check Out'; }
+                      else if (isAPLunch) { checkInMeals = 'Check in + Lunch'; checkOutMeals = 'Check Out'; }
+                      else { checkInMeals = 'Check in'; checkOutMeals = 'Breakfast + Check Out'; }
+                      return (
+                        <div style={{ marginTop: '10px', padding: '10px 14px', background: 'linear-gradient(135deg, #fffbeb, #fef3c7)', border: '1px solid #fcd34d', borderRadius: '10px', fontSize: '0.8rem' }}>
+                          <div style={{ fontWeight: '700', color: '#92400e', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            🍽️ Meal Breakdown — {day.mealPlan}
+                          </div>
+                          <div style={{ color: '#78350f', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                            <div>📅 <strong>{checkInDay}:</strong> {checkInMeals}</div>
+                            <div>📅 <strong>{nextDayDate}:</strong> {checkOutMeals}</div>
+                          </div>
+                        </div>
+                      );
+                    })()}
 
                     {day.transport === 'By Flight' && (
                       <div style={{ marginTop: '12px' }}>
