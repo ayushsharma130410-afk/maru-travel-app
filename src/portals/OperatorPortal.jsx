@@ -1914,7 +1914,7 @@ export default function OperatorPortal({ onLogout }) {
                       const isMAP = mp.includes('map') || (mp.includes('breakfast') && mp.includes('dinner') && !mp.includes('lunch'));
                       const isAP = mp.includes('ap') && mp.includes('lunch') && mp.includes('dinner') || mp.includes('breakfast, lunch & dinner');
                       const isCP = mp.includes('cp') || (mp.includes('breakfast only'));
-                      const isAPLunch = mp.includes('ap lunch') || (mp.includes('breakfast') && mp.includes('lunch') && !mp.includes('dinner'));
+                      const isAPLunch = mp.includes('MAP') || (mp.includes('breakfast') && mp.includes('lunch') && !mp.includes('dinner'));
                       if (!isMAP && !isAP && !isCP && !isAPLunch) return null;
                       const checkInDay = day.dateStr || `Day ${day.day}`;
                       const nextDayDate = day.dateStr ? (() => {
@@ -3703,7 +3703,7 @@ export default function OperatorPortal({ onLogout }) {
                       const isMAP = mp.includes('map') || (mp.includes('breakfast') && mp.includes('dinner') && !mp.includes('lunch'));
                       const isAP = (mp.includes('ap') && mp.includes('lunch') && mp.includes('dinner')) || mp.includes('breakfast, lunch & dinner');
                       const isCP = mp.includes('cp') || mp.includes('breakfast only');
-                      const isAPLunch = mp.includes('ap lunch') || (mp.includes('breakfast') && mp.includes('lunch') && !mp.includes('dinner'));
+                      const isAPLunch = mp.includes('MAP LUNCH ') || (mp.includes('breakfast') && mp.includes('lunch') && !mp.includes('dinner'));
                       if (!isMAP && !isAP && !isCP && !isAPLunch) return null;
                       const checkInDay = day.dateStr || `Day ${day.day}`;
                       const nextDayDate = day.dateStr ? (() => {
