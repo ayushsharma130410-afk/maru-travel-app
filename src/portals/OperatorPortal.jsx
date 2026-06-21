@@ -1564,6 +1564,12 @@ export default function OperatorPortal({ onLogout }) {
                                                 <span style={{ fontWeight: '600', color: '#000000' }}>{day.mealPlan}</span>
                                               </td>
                                             )}
+                                            {day.localRestaurant && (
+                                              <td style={{ border: '1px solid #cccccc', padding: '8px 10px', verticalAlign: 'top' }}>
+                                                <strong style={{ display: 'block', fontSize: '0.68rem', textTransform: 'uppercase', color: '#666666', marginBottom: '2px' }}>🍽️ Local Restaurant</strong>
+                                                <span style={{ fontWeight: '600', color: '#000000' }}>{day.localRestaurant}</span>
+                                              </td>
+                                            )}
                                             {(day.transport || day.flightNo || day.trainNo) && (
                                               <td style={{ border: '1px solid #cccccc', padding: '8px 10px', verticalAlign: 'top' }}>
                                                 <strong style={{ display: 'block', fontSize: '0.68rem', textTransform: 'uppercase', color: '#666666', marginBottom: '2px' }}>Transport</strong>
