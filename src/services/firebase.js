@@ -721,19 +721,12 @@ export const listenToLocations = (tourCode, callback) => {
 export const listenToAllLocations = (callback) => {
   if (isFirebaseAvailable) {
     const dbRef = ref(database, `locations`);
-    // Force the connection to stay alive; fixes the "No Signal" bug
-    // when operator is on desktop browser and driver is on mobile APK.
-    goOnline(database);
-    // Keep-alive ping every 25 s so desktop browser doesn't throttle the
-    // WebSocket when the tab is in the background.
-    const keepAliveInterval = setInterval(() => { goOnline(database); }, 25000);
     const unsub = onValue(dbRef, (snapshot) => {
       callback(snapshot.val() || {});
     }, () => {
       callback(localDB.get('locations') || {});
     });
     return () => {
-      clearInterval(keepAliveInterval);
       unsub();
     };
   } else {
