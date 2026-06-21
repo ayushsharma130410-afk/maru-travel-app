@@ -18,14 +18,10 @@ import {
 } from 'lucide-react';
 
 const MEAL_PLAN_OPTIONS = [
-  'No Meal',
-  'Breakfast Only (CP)',
-  'Breakfast & Lunch (MAP LUNCH)',
-  'Breakfast & Dinner (MAP)',
-  'Breakfast, Lunch & Dinner (AP)',
-  'Lunch Only',
-  'Dinner Only',
-  'Lunch & Dinner'
+  'AP (Breakfast, Lunch & Dinner)',
+  'MAP (Breakfast & Dinner / Lunch)',
+  'CP (Breakfast Only)',
+  'EP (No Meal)'
 ];
 
 export default function OperatorPortal({ onLogout }) {
@@ -1428,6 +1424,7 @@ export default function OperatorPortal({ onLogout }) {
                                     <th rowSpan="2" style={{ border: '1px solid #000000', padding: '8px', fontSize: '0.8rem', fontWeight: '800', backgroundColor: '#f8f9fa' }}>Arrival FLT/<br/>Train</th>
                                     <th rowSpan="2" style={{ border: '1px solid #000000', padding: '8px', fontSize: '0.8rem', fontWeight: '800', backgroundColor: '#f8f9fa' }}>City</th>
                                     <th rowSpan="2" style={{ border: '1px solid #000000', padding: '8px', fontSize: '0.8rem', fontWeight: '800', backgroundColor: '#f8f9fa' }}>Hotels</th>
+                                    <th rowSpan="2" style={{ border: '1px solid #000000', padding: '8px', fontSize: '0.8rem', fontWeight: '800', backgroundColor: '#f8f9fa' }}>Local Restaurant</th>
                                     <th colSpan="4" style={{ border: '1px solid #000000', padding: '6px', fontSize: '0.8rem', fontWeight: '800', backgroundColor: '#f8f9fa', textAlign: 'center' }}>Remark / Confirmation Number</th>
                                   </tr>
                                   <tr>
@@ -1457,10 +1454,12 @@ export default function OperatorPortal({ onLogout }) {
                                       <td style={{ border: '1px solid #000000', padding: '8px 6px', fontSize: '0.72rem', textAlign: 'center' }}>
                                         {day.hotelName || 'In Transit'}
                                       </td>
+                                      <td style={{ border: '1px solid #000000', padding: '8px 6px', fontSize: '0.72rem', textAlign: 'center' }}>
+                                        {day.localRestaurant || '-'}
+                                      </td>
                                       <td style={{ border: '1px solid #000000', padding: '8px 6px', fontSize: '0.7rem', textAlign: 'center' }}>
                                         {day.mealPlan || 'Dinner'}
                                         {(day.mealPlan || '').includes('MAP') && day.mapType ? ` (${day.mapType})` : ''}
-                                        {day.localRestaurant ? ` [${day.localRestaurant}]` : ''}
                                       </td>
                                       <td style={{ border: '1px solid #000000', padding: '8px 6px', fontSize: '0.75rem', textAlign: 'center' }}></td>
                                       <td style={{ border: '1px solid #000000', padding: '8px 6px', fontSize: '0.75rem', textAlign: 'center' }}></td>
