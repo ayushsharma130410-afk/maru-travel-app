@@ -497,6 +497,20 @@ export const deleteTour = async (tourCode) => {
   return { success: true };
 };
 
+export const deleteTourLocationData = async (tourCode) => {
+  if (isFirebaseAvailable) {
+    await remove(ref(database, `locations/${tourCode}`));
+    await remove(ref(database, `location_traces/${tourCode}`));
+  } else {
+    localDB.update('locations', (locs) => {
+      const newLocs = { ...locs };
+      delete newLocs[tourCode];
+      return newLocs;
+    });
+  }
+  return { success: true };
+};
+
 export const updateTourDay = async (tourCode, dayIndex, dayData) => {
   if (isFirebaseAvailable) {
     await update(ref(database, `tours/${tourCode}/itinerary/${dayIndex}`), dayData);

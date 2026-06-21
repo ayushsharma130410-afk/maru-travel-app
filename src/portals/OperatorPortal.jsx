@@ -8,7 +8,8 @@ import {
   listenToDrivers, addDriver, deleteDriver,
   publishTour, listenToAllTours, updateTourResource, updateTour, deleteTour,
   listenToComplaints, signOutGoogle, listenToAllLocations,
-  listenToRestaurants, addRestaurant, deleteRestaurant
+  listenToRestaurants, addRestaurant, deleteRestaurant,
+  deleteTourLocationData
 } from '../services/firebase';
 import { normalizeTrackingLocation, getGpsStatus, formatLocationTime } from '../utils/locationStatus';
 import LeafletMap from '../components/LeafletMap';
@@ -704,12 +705,19 @@ export default function OperatorPortal({ onLogout }) {
   };
 
   const handleSwapDriver = async (tourCode, driverName) => {
-    const driverObj = drivers.find(d => d.name === driverName);
     await updateTourResource(tourCode, 'driverName', driverName);
+    const driverObj = drivers.find(d => d.name === driverName);
     if (driverObj) {
       await updateTourResource(tourCode, 'driverMobile', driverObj.mobile);
       await updateTourResource(tourCode, 'vehicleNo', driverObj.carNumber || '');
       await updateTourResource(tourCode, 'vehicleType', driverObj.vehicleType || '');
+    }
+  };
+
+  const handleDeleteLocationData = async (tourCode) => {
+    if (window.confirm(`Are you sure you want to delete all GPS and trace data for tour ${tourCode}?`)) {
+      await deleteTourLocationData(tourCode);
+      alert('Location data deleted successfully.');
     }
   };
 
@@ -3304,7 +3312,16 @@ export default function OperatorPortal({ onLogout }) {
                           <h3 style={{ margin: '2px 0', fontSize: '1.1rem', fontWeight: '800', color: 'var(--navy)' }}>{tour.tourName}</h3>
                           <span style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: '600' }}><Users size={12} style={{marginRight:'4px', verticalAlign:'middle'}}/>{tour.clientName} ({tour.pax} Pax)</span>
                         </div>
-                        <div style={{ textAlign: 'right' }}>
+                        <div style={{ textAlign: 'right', display: 'flex', gap: '8px', alignItems: 'center' }}>
+                          {dayIndex >= (tour.itinerary?.length || 0) - 2 && (
+                            <button 
+                              title="Delete saved location data for this tour"
+                              onClick={() => handleDeleteLocationData(tour.tourCode)}
+                              style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center', color: '#ef4444' }}
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          )}
                           <span style={{ fontSize: '0.75rem', fontWeight: '800', background: '#dcfce7', color: '#166534', padding: '4px 10px', borderRadius: '20px' }}>Active Today</span>
                         </div>
                       </div>
