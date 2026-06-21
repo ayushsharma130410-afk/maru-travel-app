@@ -1833,10 +1833,12 @@ export default function OperatorPortal({ onLogout }) {
                                 <div key={actIdx} style={{ display: 'flex', alignItems: 'center', gap: '10px', backgroundColor: '#f8fafc', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
                                   <input
                                     type="time"
+                                    lang="en-GB"
                                     className="mgmt-input"
                                     style={{ width: '120px', padding: '6px 8px', fontSize: '0.82rem' }}
                                     value={(() => {
-                                      const t = act.time || '09:00 AM';
+                                      const t = act.time || '09:00';
+                                      // Handle legacy AM/PM format
                                       const match = t.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
                                       if (match) {
                                         let h = parseInt(match[1]);
@@ -1846,18 +1848,12 @@ export default function OperatorPortal({ onLogout }) {
                                         if (ampm === 'AM' && h === 12) h = 0;
                                         return `${String(h).padStart(2, '0')}:${m}`;
                                       }
-                                      return '09:00';
+                                      return t.length === 5 ? t : '09:00';
                                     })()}
                                     onChange={(e) => {
                                       const updated = [...editingTour.itinerary];
-                                      const val = e.target.value;
-                                      const [hStr, mStr] = val.split(':');
-                                      let h = parseInt(hStr);
-                                      const ampm = h >= 12 ? 'PM' : 'AM';
-                                      if (h > 12) h -= 12;
-                                      if (h === 0) h = 12;
-                                      const formatted = `${String(h).padStart(2, '0')}:${mStr} ${ampm}`;
-                                      updated[idx].activitiesList[actIdx].time = formatted;
+                                      // Store directly as 24-hour HH:MM
+                                      updated[idx].activitiesList[actIdx].time = e.target.value;
                                       setEditingTour({ ...editingTour, itinerary: updated });
                                     }}
                                   />
@@ -3617,11 +3613,12 @@ export default function OperatorPortal({ onLogout }) {
                                 <div key={actIdx} style={{ display: 'flex', alignItems: 'center', gap: '10px', backgroundColor: '#f8fafc', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
                                   <input
                                     type="time"
+                                    lang="en-GB"
                                     className="mgmt-input"
                                     style={{ width: '120px', padding: '6px 8px', fontSize: '0.82rem' }}
                                     value={(() => {
-                                      // Convert "09:00 AM" format to "09:00" for input
-                                      const t = act.time || '09:00 AM';
+                                      const t = act.time || '09:00';
+                                      // Handle legacy AM/PM format
                                       const match = t.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
                                       if (match) {
                                         let h = parseInt(match[1]);
@@ -3631,18 +3628,12 @@ export default function OperatorPortal({ onLogout }) {
                                         if (ampm === 'AM' && h === 12) h = 0;
                                         return `${String(h).padStart(2, '0')}:${m}`;
                                       }
-                                      return '09:00';
+                                      return t.length === 5 ? t : '09:00';
                                     })()}
                                     onChange={(e) => {
                                       const updated = [...itineraryDays];
-                                      const val = e.target.value; // "14:30"
-                                      const [hStr, mStr] = val.split(':');
-                                      let h = parseInt(hStr);
-                                      const ampm = h >= 12 ? 'PM' : 'AM';
-                                      if (h > 12) h -= 12;
-                                      if (h === 0) h = 12;
-                                      const formatted = `${String(h).padStart(2, '0')}:${mStr} ${ampm}`;
-                                      updated[idx].activitiesList[actIdx].time = formatted;
+                                      // Store directly as 24-hour HH:MM
+                                      updated[idx].activitiesList[actIdx].time = e.target.value;
                                       setItineraryDays(updated);
                                     }}
                                   />
