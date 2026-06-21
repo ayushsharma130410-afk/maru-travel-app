@@ -1286,21 +1286,22 @@ export default function OperatorPortal({ onLogout }) {
                           <div style={{ margin: '22px 0', fontSize: '0.9rem' }}>
                             <div style={{ fontWeight: 'bold', marginBottom: '6px' }}>
                               Meal Plan- {(() => {
-                                const mp = selectedDay.mealPlan || '';
-                                if (mp.startsWith('AP')) return 'AP';
-                                if (mp.startsWith('MAP')) return 'MAP';
-                                if (mp.startsWith('CP')) return 'CP';
-                                if (mp.startsWith('EP')) return 'EP';
-                                return mp;
+                                const mp = (selectedDay.mealPlan || '').toLowerCase();
+                                if (mp.startsWith('ap') || (mp.includes('(ap)') && !mp.includes('map'))) return 'AP';
+                                if (mp.startsWith('map') || mp.includes('(map')) return 'MAP';
+                                if (mp.startsWith('cp') || mp.includes('(cp)') || mp.includes('breakfast only')) return 'CP';
+                                if (mp.startsWith('ep') || mp.includes('no meal')) return 'EP';
+                                return selectedDay.mealPlan || 'MAP';
                               })()}
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', paddingLeft: '2px' }}>
                               {(() => {
-                                const mp = (selectedDay.mealPlan || '');
+                                const mp = (selectedDay.mealPlan || '').toLowerCase();
                                 const mpType = (selectedDay.mapType || 'Dinner + Breakfast');
-                                const isAP = mp.startsWith('AP') || mp.includes('Breakfast, Lunch');
-                                const isMAP = !isAP && mp.startsWith('MAP');
-                                const isCP = !isAP && !isMAP && (mp.startsWith('CP') || mp.includes('Breakfast Only'));
+                                const isAP = mp.startsWith('ap') || (mp.includes('(ap)') && !mp.includes('map')) || mp.includes('breakfast, lunch & dinner') || mp.includes('breakfast, lunch');
+                                const isMAP = !isAP && (mp.startsWith('map') || mp.includes('(map') || (mp.includes('breakfast') && mp.includes('dinner') && !mp.includes('lunch')));
+                                const isMAPLunch = !isAP && (mp.includes('map lunch') || (mp.includes('breakfast') && mp.includes('lunch') && !mp.includes('dinner')));
+                                const isCP = !isAP && !isMAP && !isMAPLunch && (mp.startsWith('cp') || mp.includes('(cp)') || mp.includes('breakfast only'));
                                 if (isAP) {
                                   return (
                                     <>
@@ -1308,22 +1309,20 @@ export default function OperatorPortal({ onLogout }) {
                                       <div>{checkoutDateStr}: Breakfast + Check Out</div>
                                     </>
                                   );
+                                } else if (isMAPLunch || (isMAP && mpType === 'Lunch + Breakfast')) {
+                                  return (
+                                    <>
+                                      <div>{selectedDay.dateStr}: Check in + Lunch</div>
+                                      <div>{checkoutDateStr}: Breakfast + Check Out</div>
+                                    </>
+                                  );
                                 } else if (isMAP) {
-                                  if (mpType === 'Lunch + Breakfast') {
-                                    return (
-                                      <>
-                                        <div>{selectedDay.dateStr}: Check in + Lunch</div>
-                                        <div>{checkoutDateStr}: Breakfast + Check Out</div>
-                                      </>
-                                    );
-                                  } else {
-                                    return (
-                                      <>
-                                        <div>{selectedDay.dateStr}: Check in + Dinner</div>
-                                        <div>{checkoutDateStr}: Breakfast + Check Out</div>
-                                      </>
-                                    );
-                                  }
+                                  return (
+                                    <>
+                                      <div>{selectedDay.dateStr}: Check in + Dinner</div>
+                                      <div>{checkoutDateStr}: Breakfast + Check Out</div>
+                                    </>
+                                  );
                                 } else if (isCP) {
                                   return (
                                     <>
