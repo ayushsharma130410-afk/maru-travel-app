@@ -1831,32 +1831,65 @@ export default function OperatorPortal({ onLogout }) {
                               <label className="login-label" style={{ color: 'var(--text-primary)', fontSize: '0.78rem', fontWeight: '700' }}>⏰ Set Activity Times (shown to Driver & Client)</label>
                               {day.activitiesList.map((act, actIdx) => (
                                 <div key={actIdx} style={{ display: 'flex', alignItems: 'center', gap: '10px', backgroundColor: '#f8fafc', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
-                                  <input
-                                    type="time"
-                                    lang="en-GB"
-                                    className="mgmt-input"
-                                    style={{ width: '120px', padding: '6px 8px', fontSize: '0.82rem' }}
-                                    value={(() => {
-                                      const t = act.time || '09:00';
-                                      // Handle legacy AM/PM format
-                                      const match = t.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
-                                      if (match) {
-                                        let h = parseInt(match[1]);
-                                        const m = match[2];
-                                        const ampm = match[3].toUpperCase();
-                                        if (ampm === 'PM' && h !== 12) h += 12;
-                                        if (ampm === 'AM' && h === 12) h = 0;
-                                        return `${String(h).padStart(2, '0')}:${m}`;
-                                      }
-                                      return t.length === 5 ? t : '09:00';
-                                    })()}
-                                    onChange={(e) => {
-                                      const updated = [...editingTour.itinerary];
-                                      // Store directly as 24-hour HH:MM
-                                      updated[idx].activitiesList[actIdx].time = e.target.value;
-                                      setEditingTour({ ...editingTour, itinerary: updated });
-                                    }}
-                                  />
+                                  {/* Custom 24-hour time input — avoids AM/PM browser locale issue */}
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '3px', backgroundColor: '#fff', border: '1px solid var(--border-light)', borderRadius: '6px', padding: '4px 8px', width: '110px' }}>
+                                    <input
+                                      type="number"
+                                      min="0" max="23"
+                                      className="mgmt-input"
+                                      style={{ width: '38px', padding: '2px 4px', fontSize: '0.88rem', fontWeight: '700', textAlign: 'center', border: 'none', outline: 'none', background: 'transparent', MozAppearance: 'textfield' }}
+                                      value={(() => {
+                                        const t = act.time || '09:00';
+                                        const match = t.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+                                        if (match) {
+                                          let h = parseInt(match[1]);
+                                          const ampm = match[3].toUpperCase();
+                                          if (ampm === 'PM' && h !== 12) h += 12;
+                                          if (ampm === 'AM' && h === 12) h = 0;
+                                          return String(h).padStart(2, '0');
+                                        }
+                                        return t.split(':')[0] || '09';
+                                      })()}
+                                      onChange={(e) => {
+                                        const updated = [...editingTour.itinerary];
+                                        const t = act.time || '09:00';
+                                        const mins = t.includes(':') ? t.replace(/\s*(AM|PM)$/i,'').split(':')[1] || '00' : '00';
+                                        const h = Math.min(23, Math.max(0, parseInt(e.target.value) || 0));
+                                        updated[idx].activitiesList[actIdx].time = `${String(h).padStart(2,'0')}:${mins}`;
+                                        setEditingTour({ ...editingTour, itinerary: updated });
+                                      }}
+                                    />
+                                    <span style={{ fontWeight: '800', fontSize: '0.9rem', color: '#334155' }}>:</span>
+                                    <input
+                                      type="number"
+                                      min="0" max="59"
+                                      className="mgmt-input"
+                                      style={{ width: '38px', padding: '2px 4px', fontSize: '0.88rem', fontWeight: '700', textAlign: 'center', border: 'none', outline: 'none', background: 'transparent', MozAppearance: 'textfield' }}
+                                      value={(() => {
+                                        const t = act.time || '09:00';
+                                        const clean = t.replace(/\s*(AM|PM)$/i, '');
+                                        return clean.split(':')[1] || '00';
+                                      })()}
+                                      onChange={(e) => {
+                                        const updated = [...editingTour.itinerary];
+                                        const t = act.time || '09:00';
+                                        const hrs = t.includes(':') ? (() => {
+                                          const match = t.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+                                          if (match) {
+                                            let h = parseInt(match[1]);
+                                            const ampm = match[3].toUpperCase();
+                                            if (ampm === 'PM' && h !== 12) h += 12;
+                                            if (ampm === 'AM' && h === 12) h = 0;
+                                            return String(h).padStart(2, '0');
+                                          }
+                                          return t.split(':')[0];
+                                        })() : '09';
+                                        const m = Math.min(59, Math.max(0, parseInt(e.target.value) || 0));
+                                        updated[idx].activitiesList[actIdx].time = `${hrs}:${String(m).padStart(2,'0')}`;
+                                        setEditingTour({ ...editingTour, itinerary: updated });
+                                      }}
+                                    />
+                                  </div>
                                   <input
                                     type="text"
                                     className="mgmt-input"
@@ -3611,32 +3644,65 @@ export default function OperatorPortal({ onLogout }) {
                               <label className="login-label" style={{ color: 'var(--text-primary)', fontSize: '0.78rem', fontWeight: '700' }}>⏰ Set Activity Times (shown to Driver & Client)</label>
                               {day.activitiesList.map((act, actIdx) => (
                                 <div key={actIdx} style={{ display: 'flex', alignItems: 'center', gap: '10px', backgroundColor: '#f8fafc', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
-                                  <input
-                                    type="time"
-                                    lang="en-GB"
-                                    className="mgmt-input"
-                                    style={{ width: '120px', padding: '6px 8px', fontSize: '0.82rem' }}
-                                    value={(() => {
-                                      const t = act.time || '09:00';
-                                      // Handle legacy AM/PM format
-                                      const match = t.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
-                                      if (match) {
-                                        let h = parseInt(match[1]);
-                                        const m = match[2];
-                                        const ampm = match[3].toUpperCase();
-                                        if (ampm === 'PM' && h !== 12) h += 12;
-                                        if (ampm === 'AM' && h === 12) h = 0;
-                                        return `${String(h).padStart(2, '0')}:${m}`;
-                                      }
-                                      return t.length === 5 ? t : '09:00';
-                                    })()}
-                                    onChange={(e) => {
-                                      const updated = [...itineraryDays];
-                                      // Store directly as 24-hour HH:MM
-                                      updated[idx].activitiesList[actIdx].time = e.target.value;
-                                      setItineraryDays(updated);
-                                    }}
-                                  />
+                                  {/* Custom 24-hour time input — avoids AM/PM browser locale issue */}
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '3px', backgroundColor: '#fff', border: '1px solid var(--border-light)', borderRadius: '6px', padding: '4px 8px', width: '110px' }}>
+                                    <input
+                                      type="number"
+                                      min="0" max="23"
+                                      className="mgmt-input"
+                                      style={{ width: '38px', padding: '2px 4px', fontSize: '0.88rem', fontWeight: '700', textAlign: 'center', border: 'none', outline: 'none', background: 'transparent', MozAppearance: 'textfield' }}
+                                      value={(() => {
+                                        const t = act.time || '09:00';
+                                        const match = t.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+                                        if (match) {
+                                          let h = parseInt(match[1]);
+                                          const ampm = match[3].toUpperCase();
+                                          if (ampm === 'PM' && h !== 12) h += 12;
+                                          if (ampm === 'AM' && h === 12) h = 0;
+                                          return String(h).padStart(2, '0');
+                                        }
+                                        return t.split(':')[0] || '09';
+                                      })()}
+                                      onChange={(e) => {
+                                        const updated = [...itineraryDays];
+                                        const t = act.time || '09:00';
+                                        const mins = t.includes(':') ? t.replace(/\s*(AM|PM)$/i,'').split(':')[1] || '00' : '00';
+                                        const h = Math.min(23, Math.max(0, parseInt(e.target.value) || 0));
+                                        updated[idx].activitiesList[actIdx].time = `${String(h).padStart(2,'0')}:${mins}`;
+                                        setItineraryDays(updated);
+                                      }}
+                                    />
+                                    <span style={{ fontWeight: '800', fontSize: '0.9rem', color: '#334155' }}>:</span>
+                                    <input
+                                      type="number"
+                                      min="0" max="59"
+                                      className="mgmt-input"
+                                      style={{ width: '38px', padding: '2px 4px', fontSize: '0.88rem', fontWeight: '700', textAlign: 'center', border: 'none', outline: 'none', background: 'transparent', MozAppearance: 'textfield' }}
+                                      value={(() => {
+                                        const t = act.time || '09:00';
+                                        const clean = t.replace(/\s*(AM|PM)$/i, '');
+                                        return clean.split(':')[1] || '00';
+                                      })()}
+                                      onChange={(e) => {
+                                        const updated = [...itineraryDays];
+                                        const t = act.time || '09:00';
+                                        const hrs = t.includes(':') ? (() => {
+                                          const match = t.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+                                          if (match) {
+                                            let h = parseInt(match[1]);
+                                            const ampm = match[3].toUpperCase();
+                                            if (ampm === 'PM' && h !== 12) h += 12;
+                                            if (ampm === 'AM' && h === 12) h = 0;
+                                            return String(h).padStart(2, '0');
+                                          }
+                                          return t.split(':')[0];
+                                        })() : '09';
+                                        const m = Math.min(59, Math.max(0, parseInt(e.target.value) || 0));
+                                        updated[idx].activitiesList[actIdx].time = `${hrs}:${String(m).padStart(2,'0')}`;
+                                        setItineraryDays(updated);
+                                      }}
+                                    />
+                                  </div>
                                   <input
                                     type="text"
                                     className="mgmt-input"
