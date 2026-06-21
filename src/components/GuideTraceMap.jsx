@@ -126,13 +126,15 @@ export default function GuideTraceMap({ tourCode, guideName, onClose }) {
     }
 
     // Draw Polyline
-    const latlngs = traces.map(t => [t.latitude, t.longitude]);
-    routeLayerRef.current = window.L.polyline(latlngs, {
-      color: '#f59e0b',
-      weight: 5,
-      opacity: 0.8,
-      lineJoin: 'round'
-    }).addTo(mapInstance);
+    if (traces.length > 1) {
+      const latlngs = traces.map(t => [t.latitude, t.longitude]);
+      routeLayerRef.current = window.L.polyline(latlngs, {
+        color: '#f59e0b',
+        weight: 5,
+        opacity: 0.8,
+        lineJoin: 'round'
+      }).addTo(mapInstance);
+    }
 
     // Draw Offline Segments as Dashed Red
     offlineSegments.forEach(seg => {
@@ -214,6 +216,18 @@ export default function GuideTraceMap({ tourCode, guideName, onClose }) {
               <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f1f5f9', zIndex: 10 }}>
                 <span className="live-dot" style={{ display: 'inline-block', width: '12px', height: '12px', borderRadius: '50%', background: 'var(--primary)', animation: 'pulse 1.5s infinite' }}></span>
                 <span style={{ marginLeft: '10px', fontWeight: '600', color: '#64748b' }}>Loading Trace History...</span>
+              </div>
+            )}
+            {!loading && traces.length <= 1 && (
+              <div style={{ position: 'absolute', top: '20px', left: '50%', transform: 'translateX(-50%)', backgroundColor: '#fff', padding: '12px 20px', borderRadius: '8px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', zIndex: 1000, border: '1px solid #e2e8f0', textAlign: 'center' }}>
+                <h3 style={{ margin: '0 0 4px 0', color: '#0f172a', fontSize: '1rem', fontWeight: '800' }}>Insufficient Trace Data</h3>
+                <p style={{ margin: 0, color: '#64748b', fontSize: '0.8rem' }}>The guide's device is offline or tracking just started. Please wait for more data points.</p>
+              </div>
+            )}
+            {!loading && traces.length > 1 && (Date.now() - traces[traces.length - 1].timestamp > 5 * 60 * 1000) && (
+              <div style={{ position: 'absolute', top: '20px', left: '50%', transform: 'translateX(-50%)', backgroundColor: '#fee2e2', padding: '8px 16px', borderRadius: '8px', boxShadow: '0 4px 6px rgba(220,38,38,0.2)', zIndex: 1000, border: '1px solid #ef4444', textAlign: 'center', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#dc2626' }}></div>
+                <span style={{ color: '#991b1b', fontWeight: '800', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Device Offline / No Signal</span>
               </div>
             )}
             <div ref={mapContainerRef} style={{ width: '100%', height: '100%' }} />

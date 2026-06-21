@@ -34,7 +34,23 @@ export function useBackgroundLocation({
   }, [tourCode, onLocation, onTrackingEnd]);
 
   useEffect(() => {
-    if (!enabled || !tourData || !tourCode) return;
+    const getTodayYYYYMMDD = () => {
+      // Use IST or local date
+      const d = new Date();
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    };
+
+    const todayStr = getTodayYYYYMMDD();
+    const isTourActiveDate = tourData && tourData.startDate && tourData.endDate 
+        && todayStr >= tourData.startDate 
+        && todayStr <= tourData.endDate;
+
+    const isActuallyEnabled = enabled && isTourActiveDate;
+
+    if (!isActuallyEnabled || !tourData || !tourCode) return;
 
     let watcherId = null;
     let watchId = null;
