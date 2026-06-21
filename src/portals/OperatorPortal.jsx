@@ -166,17 +166,26 @@ export default function OperatorPortal({ onLogout }) {
       setVoucherIssueDate(today);
 
       // Extract details
-      const grp = printTour.clientName ? `MT - ${printTour.clientName.toUpperCase()}` : '';
+      const grp = printTour.tourTitle || printTour.clientName || '';
       setVoucherGrpName(grp);
 
-      const fileCode = printTour.tourCode ? `MT / ${printTour.tourCode.toUpperCase()}` : '';
-      setVoucherFileCode(fileCode);
+      // Generate File Code: KR + Month + Year
+      let autoFileCode = '';
+      if (printTour.startDate) {
+        const sd = new Date(printTour.startDate);
+        if (!isNaN(sd)) {
+          const mm = String(sd.getMonth() + 1).padStart(2, '0');
+          const yy = sd.getFullYear();
+          autoFileCode = `KR${mm}${yy}`;
+        }
+      }
+      setVoucherFileCode(autoFileCode || (printTour.tourCode ? `MT / ${printTour.tourCode.toUpperCase()}` : ''));
 
       // Calculate rooms string based on rooms count saved in the tour
-      const doubleCount = printTour.doubleRooms || 0;
-      const twinCount = printTour.twinRooms || 0;
-      const singleCount = printTour.singleRooms || 0;
-      const tripleCount = printTour.tripleRooms || 0;
+      const doubleCount = parseInt(printTour.doubleRooms, 10) || 0;
+      const twinCount = parseInt(printTour.twinRooms, 10) || 0;
+      const singleCount = parseInt(printTour.singleRooms, 10) || 0;
+      const tripleCount = parseInt(printTour.tripleRooms, 10) || 0;
       
       const parts = [];
       if (doubleCount > 0) parts.push(`${String(doubleCount).padStart(2, '0')} Double`);
@@ -545,13 +554,8 @@ export default function OperatorPortal({ onLogout }) {
 
     const formatTime = (hour, min) => {
       let h = hour;
-      let period = 'AM';
-      if (h >= 12) {
-        period = 'PM';
-        if (h > 12) h -= 12;
-      }
-      if (h === 0) h = 12;
-      return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')} ${period}`;
+      if (h >= 24) h = h % 24;
+      return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
     };
 
     const extractTimeFromString = (str) => {
@@ -1285,7 +1289,7 @@ export default function OperatorPortal({ onLogout }) {
                           {/* Meal Plan & Schedule */}
                           <div style={{ margin: '22px 0', fontSize: '0.9rem' }}>
                             <div style={{ fontWeight: 'bold', marginBottom: '6px' }}>
-                              Meal Plan- {selectedDay.mealPlan || 'MAP'}
+                              Meal Plan- {selectedDay.mealPlan || 'MAP'}{(selectedDay.mealPlan || '').includes('MAP') && selectedDay.mapType ? ` (${selectedDay.mapType})` : ''}
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', paddingLeft: '2px' }}>
                               {(() => {
@@ -1455,6 +1459,8 @@ export default function OperatorPortal({ onLogout }) {
                                       </td>
                                       <td style={{ border: '1px solid #000000', padding: '8px 6px', fontSize: '0.7rem', textAlign: 'center' }}>
                                         {day.mealPlan || 'Dinner'}
+                                        {(day.mealPlan || '').includes('MAP') && day.mapType ? ` (${day.mapType})` : ''}
+                                        {day.localRestaurant ? ` [${day.localRestaurant}]` : ''}
                                       </td>
                                       <td style={{ border: '1px solid #000000', padding: '8px 6px', fontSize: '0.75rem', textAlign: 'center' }}></td>
                                       <td style={{ border: '1px solid #000000', padding: '8px 6px', fontSize: '0.75rem', textAlign: 'center' }}></td>
@@ -1905,6 +1911,16 @@ export default function OperatorPortal({ onLogout }) {
                         }}>
                           {MEAL_PLAN_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                         </select>
+                        {(day.mealPlan || '').includes('MAP') && (
+                          <select className="mgmt-select" value={day.mapType || 'Dinner + Breakfast'} onChange={(e) => {
+                            const updated = [...editingTour.itinerary];
+                            updated[idx].mapType = e.target.value;
+                            setEditingTour({ ...editingTour, itinerary: updated });
+                          }} style={{ marginTop: '8px' }}>
+                            <option value="Dinner + Breakfast">Dinner + Breakfast</option>
+                            <option value="Lunch + Breakfast">Lunch + Breakfast</option>
+                          </select>
+                        )}
                       </div>
                     </div>
 
@@ -1974,7 +1990,7 @@ export default function OperatorPortal({ onLogout }) {
                           setEditingTour({ ...editingTour, itinerary: updated });
                         }}>
                           <option value="">No Restaurant Assigned</option>
-                          {restaurants.filter(r => r.city === day.city).map(r => (
+                          {restaurants.map(r => (
                             <option key={r.id} value={r.name}>{r.name} ({r.mealType} - {r.cuisine})</option>
                           ))}
                         </select>
@@ -3694,6 +3710,16 @@ export default function OperatorPortal({ onLogout }) {
                         }}>
                           {MEAL_PLAN_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                         </select>
+                        {(day.mealPlan || '').includes('MAP') && (
+                          <select className="mgmt-select" value={day.mapType || 'Dinner + Breakfast'} onChange={(e) => {
+                            const updated = [...itineraryDays];
+                            updated[idx].mapType = e.target.value;
+                            setItineraryDays(updated);
+                          }} style={{ marginTop: '8px' }}>
+                            <option value="Dinner + Breakfast">Dinner + Breakfast</option>
+                            <option value="Lunch + Breakfast">Lunch + Breakfast</option>
+                          </select>
+                        )}
                       </div>
                     </div>
 
@@ -3841,7 +3867,7 @@ export default function OperatorPortal({ onLogout }) {
                           setItineraryDays(updated);
                         }}>
                           <option value="">No Restaurant Assigned</option>
-                          {restaurants.filter(r => r.city === day.city).map(r => (
+                          {restaurants.map(r => (
                             <option key={r.id} value={r.name}>{r.name} ({r.mealType} - {r.cuisine})</option>
                           ))}
                         </select>
