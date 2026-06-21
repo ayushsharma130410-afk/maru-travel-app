@@ -1285,7 +1285,14 @@ export default function OperatorPortal({ onLogout }) {
                           {/* Meal Plan & Schedule */}
                           <div style={{ margin: '22px 0', fontSize: '0.9rem' }}>
                             <div style={{ fontWeight: 'bold', marginBottom: '6px' }}>
-                              Meal Plan- {selectedDay.mealPlan || 'MAP'}{(selectedDay.mealPlan || '').includes('MAP') && selectedDay.mapType ? ` (${selectedDay.mapType})` : ''}
+                              Meal Plan- {(() => {
+                                const mp = selectedDay.mealPlan || '';
+                                if (mp.startsWith('AP')) return 'AP';
+                                if (mp.startsWith('MAP')) return 'MAP';
+                                if (mp.startsWith('CP')) return 'CP';
+                                if (mp.startsWith('EP')) return 'EP';
+                                return mp;
+                              })()}
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', paddingLeft: '2px' }}>
                               {(() => {
@@ -1832,12 +1839,11 @@ export default function OperatorPortal({ onLogout }) {
                               {day.activitiesList.map((act, actIdx) => (
                                 <div key={actIdx} style={{ display: 'flex', alignItems: 'center', gap: '10px', backgroundColor: '#f8fafc', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
                                   {/* Custom 24-hour time input — avoids AM/PM browser locale issue */}
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '3px', backgroundColor: '#fff', border: '1px solid var(--border-light)', borderRadius: '6px', padding: '4px 8px', width: '110px' }}>
+                                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '2px', backgroundColor: '#fff', border: '2px solid #e2e8f0', borderRadius: '8px', padding: '6px 10px', minWidth: '90px' }}>
                                     <input
                                       type="number"
                                       min="0" max="23"
-                                      className="mgmt-input"
-                                      style={{ width: '38px', padding: '2px 4px', fontSize: '0.88rem', fontWeight: '700', textAlign: 'center', border: 'none', outline: 'none', background: 'transparent', MozAppearance: 'textfield' }}
+                                      style={{ width: '32px', padding: '2px', fontSize: '0.95rem', fontWeight: '700', textAlign: 'center', border: 'none', outline: 'none', background: 'transparent', WebkitAppearance: 'none', MozAppearance: 'textfield' }}
                                       value={(() => {
                                         const t = act.time || '09:00';
                                         const match = t.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
@@ -1859,12 +1865,11 @@ export default function OperatorPortal({ onLogout }) {
                                         setEditingTour({ ...editingTour, itinerary: updated });
                                       }}
                                     />
-                                    <span style={{ fontWeight: '800', fontSize: '0.9rem', color: '#334155' }}>:</span>
+                                    <span style={{ fontWeight: '800', fontSize: '1rem', color: '#1e293b', lineHeight: 1 }}>:</span>
                                     <input
                                       type="number"
                                       min="0" max="59"
-                                      className="mgmt-input"
-                                      style={{ width: '38px', padding: '2px 4px', fontSize: '0.88rem', fontWeight: '700', textAlign: 'center', border: 'none', outline: 'none', background: 'transparent', MozAppearance: 'textfield' }}
+                                      style={{ width: '32px', padding: '2px', fontSize: '0.95rem', fontWeight: '700', textAlign: 'center', border: 'none', outline: 'none', background: 'transparent', WebkitAppearance: 'none', MozAppearance: 'textfield' }}
                                       value={(() => {
                                         const t = act.time || '09:00';
                                         const clean = t.replace(/\s*(AM|PM)$/i, '');
@@ -3645,12 +3650,11 @@ export default function OperatorPortal({ onLogout }) {
                               {day.activitiesList.map((act, actIdx) => (
                                 <div key={actIdx} style={{ display: 'flex', alignItems: 'center', gap: '10px', backgroundColor: '#f8fafc', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
                                   {/* Custom 24-hour time input — avoids AM/PM browser locale issue */}
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '3px', backgroundColor: '#fff', border: '1px solid var(--border-light)', borderRadius: '6px', padding: '4px 8px', width: '110px' }}>
+                                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '2px', backgroundColor: '#fff', border: '2px solid #e2e8f0', borderRadius: '8px', padding: '6px 10px', minWidth: '90px' }}>
                                     <input
                                       type="number"
                                       min="0" max="23"
-                                      className="mgmt-input"
-                                      style={{ width: '38px', padding: '2px 4px', fontSize: '0.88rem', fontWeight: '700', textAlign: 'center', border: 'none', outline: 'none', background: 'transparent', MozAppearance: 'textfield' }}
+                                      style={{ width: '32px', padding: '2px', fontSize: '0.95rem', fontWeight: '700', textAlign: 'center', border: 'none', outline: 'none', background: 'transparent', WebkitAppearance: 'none', MozAppearance: 'textfield' }}
                                       value={(() => {
                                         const t = act.time || '09:00';
                                         const match = t.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
@@ -3672,12 +3676,11 @@ export default function OperatorPortal({ onLogout }) {
                                         setItineraryDays(updated);
                                       }}
                                     />
-                                    <span style={{ fontWeight: '800', fontSize: '0.9rem', color: '#334155' }}>:</span>
+                                    <span style={{ fontWeight: '800', fontSize: '1rem', color: '#1e293b', lineHeight: 1 }}>:</span>
                                     <input
                                       type="number"
                                       min="0" max="59"
-                                      className="mgmt-input"
-                                      style={{ width: '38px', padding: '2px 4px', fontSize: '0.88rem', fontWeight: '700', textAlign: 'center', border: 'none', outline: 'none', background: 'transparent', MozAppearance: 'textfield' }}
+                                      style={{ width: '32px', padding: '2px', fontSize: '0.95rem', fontWeight: '700', textAlign: 'center', border: 'none', outline: 'none', background: 'transparent', WebkitAppearance: 'none', MozAppearance: 'textfield' }}
                                       value={(() => {
                                         const t = act.time || '09:00';
                                         const clean = t.replace(/\s*(AM|PM)$/i, '');
