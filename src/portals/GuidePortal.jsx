@@ -833,7 +833,28 @@ export default function GuidePortal({ tourCode: initialTourCode, onLogout }) {
               {currentDayItinerary.hotelName && (
                 <div style={{ marginTop: '12px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-secondary)' }}>
                   <span>🏨 Hotel:</span>
-                  <strong style={{ color: 'var(--navy)' }}>{currentDayItinerary.hotelName}</strong>
+                  <a 
+                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(currentDayItinerary.hotelName + ' ' + currentDayItinerary.city)}`}
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    style={{ color: 'var(--navy)', fontWeight: 'bold', textDecoration: 'underline' }}
+                  >
+                    {currentDayItinerary.hotelName}
+                  </a>
+                </div>
+              )}
+
+              {currentDayItinerary.localRestaurant && (
+                <div style={{ marginTop: '8px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-secondary)' }}>
+                  <span>🍽️ Restaurant:</span>
+                  <a 
+                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(currentDayItinerary.localRestaurant + ' ' + currentDayItinerary.city)}`}
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    style={{ color: 'var(--navy)', fontWeight: 'bold', textDecoration: 'underline' }}
+                  >
+                    {currentDayItinerary.localRestaurant}
+                  </a>
                 </div>
               )}
 
