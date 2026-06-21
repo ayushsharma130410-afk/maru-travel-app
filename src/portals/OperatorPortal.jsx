@@ -150,11 +150,21 @@ export default function OperatorPortal({ onLogout }) {
 
   // Fetch guide busy statuses when guides or tours change
   useEffect(() => {
+    const newGuideBusyStates = {};
     guides.forEach((g) => {
-      getGuideBusyStatus(g.name, (busyDates) => {
-        setGuideBusyStates((prev) => ({ ...prev, [g.name]: busyDates }));
+      const busyDates = [];
+      tours.forEach(tour => {
+        if (tour.guideName === g.name) {
+          busyDates.push({
+            tourCode: tour.tourCode,
+            startDate: tour.startDate,
+            endDate: tour.endDate
+          });
+        }
       });
+      newGuideBusyStates[g.name] = busyDates;
     });
+    setGuideBusyStates(newGuideBusyStates);
   }, [guides, tours]);
 
   // Auto-populate Hotel Voucher details when printTour is set
