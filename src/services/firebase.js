@@ -481,6 +481,7 @@ export const deleteTour = async (tourCode) => {
   if (isFirebaseAvailable) {
     await remove(ref(database, `tours/${tourCode}`));
     await remove(ref(database, `locations/${tourCode}`));
+    await remove(ref(database, `location_traces/${tourCode}`));
   } else {
     localDB.update('tours', (tours) => {
       const newTours = { ...tours };
@@ -632,6 +633,8 @@ export const updateDriverLocation = async (tourCode, locationOrLat, lng) => {
   return { success: true };
 };
 
+let lastGuideTraceTime = 0;
+
 export const updateGuideLocation = async (tourCode, locationOrLat, lng) => {
   const location = typeof locationOrLat === 'object'
     ? locationOrLat
@@ -645,6 +648,18 @@ export const updateGuideLocation = async (tourCode, locationOrLat, lng) => {
       offlineAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
+
+    const now = Date.now();
+    if (now - lastGuideTraceTime >= 3 * 60 * 1000) {
+      const traceRef = ref(database, `location_traces/${tourCode}/guide`);
+      await push(traceRef, {
+        latitude: payload.latitude,
+        longitude: payload.longitude,
+        timestamp: payload.timestamp,
+        status: 'online'
+      });
+      lastGuideTraceTime = now;
+    }
   } else {
     localDB.update('locations', (locs) => ({
       ...locs,
@@ -652,6 +667,21 @@ export const updateGuideLocation = async (tourCode, locationOrLat, lng) => {
     }));
   }
   return { success: true };
+};
+
+export const listenToGuideTrace = (tourCode, callback) => {
+  if (!isFirebaseAvailable) return () => {};
+  const traceRef = ref(database, `location_traces/${tourCode}/guide`);
+  return onValue(traceRef, (snapshot) => {
+    if (snapshot.exists()) {
+      const data = snapshot.val();
+      // convert object of objects into array sorted by timestamp
+      const traces = Object.values(data).sort((a, b) => a.timestamp - b.timestamp);
+      callback(traces);
+    } else {
+      callback([]);
+    }
+  });
 };
 
 export const listenToLocations = (tourCode, callback) => {

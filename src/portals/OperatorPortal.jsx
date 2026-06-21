@@ -12,6 +12,7 @@ import {
 } from '../services/firebase';
 import { normalizeTrackingLocation, getGpsStatus, formatLocationTime } from '../utils/locationStatus';
 import LeafletMap from '../components/LeafletMap';
+import GuideTraceMap from '../components/GuideTraceMap';
 import { 
   BarChart2, MapPin, Compass, Hotel, Award, Car, Clipboard, 
   Plus, Trash2, Calendar, Users, Phone, Shield, Star, Check, CheckCircle2, Globe, HelpCircle, Printer, UtensilsCrossed, Edit3, Navigation
@@ -38,6 +39,7 @@ export default function OperatorPortal({ onLogout }) {
   const [complaints, setComplaints] = useState([]);
   const [restaurants, setRestaurants] = useState([]);
   const [liveLocations, setLiveLocations] = useState({});
+  const [selectedTraceTour, setSelectedTraceTour] = useState(null);
   const [locationTick, setLocationTick] = useState(0);
 
   // Busy states for guides
@@ -3363,15 +3365,13 @@ export default function OperatorPortal({ onLogout }) {
                                 fontSize: '0.8rem', 
                                 fontWeight: '800', 
                                 color: '#0f172a',
-                                cursor: guideLoc ? 'pointer' : 'default',
-                                textDecoration: guideLoc ? 'underline' : 'none'
+                                cursor: 'pointer',
+                                textDecoration: 'underline'
                               }}
                               onClick={() => {
-                                if (guideLoc) {
-                                  window.open(`https://maps.google.com/?q=${guideLoc.lat},${guideLoc.lng}`, '_blank');
-                                }
+                                setSelectedTraceTour({ tourCode: tour.tourCode, guideName: tour.guideName || 'Guide' });
                               }}
-                              title={guideLoc ? "Hovered: Click to open live location on Google Maps" : ""}
+                              title="Click to view detailed trace history and auto-stops"
                             >
                               Guide: {tour.guideName || 'Not Assigned'}
                             </span>
@@ -4089,6 +4089,14 @@ export default function OperatorPortal({ onLogout }) {
               </div>
             </div>
           )}
+
+      {selectedTraceTour && (
+        <GuideTraceMap 
+          tourCode={selectedTraceTour.tourCode} 
+          guideName={selectedTraceTour.guideName} 
+          onClose={() => setSelectedTraceTour(null)} 
+        />
+      )}
     </div>
   );
 }
