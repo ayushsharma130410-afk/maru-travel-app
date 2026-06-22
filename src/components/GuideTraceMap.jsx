@@ -126,8 +126,8 @@ export default function GuideTraceMap({ tourCode, guideName, onClose }) {
     }
 
     // Draw Polyline
-    if (traces.length > 1) {
-      const latlngs = traces.map(t => [t.latitude, t.longitude]);
+    const latlngs = traces.map(t => [t.latitude, t.longitude]);
+    if (latlngs.length > 1) {
       routeLayerRef.current = window.L.polyline(latlngs, {
         color: '#f59e0b',
         weight: 5,
@@ -178,8 +178,10 @@ export default function GuideTraceMap({ tourCode, guideName, onClose }) {
        markersRef.current.push(smm);
     });
 
-    if (latlngs.length > 0) {
+    if (routeLayerRef.current) {
       mapInstance.fitBounds(routeLayerRef.current.getBounds(), { padding: [50, 50] });
+    } else if (latlngs.length > 0) {
+      mapInstance.setView(latlngs[0], 14);
     }
 
   }, [traces]);
