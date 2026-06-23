@@ -1189,10 +1189,23 @@ export default function OperatorPortal({ onLogout }) {
                       );
                     }
 
-                    // Calculate Checkout Date (next day)
-                    const nextDay = printTour.itinerary?.[voucherDayIndex + 1];
+                    // Calculate consecutive days for the same hotel in the same city
+                    const hotelStayDays = [selectedDay];
+                    let lastStayDayIndex = voucherDayIndex;
+                    for (let i = voucherDayIndex + 1; i < (printTour.itinerary?.length || 0); i++) {
+                      const nextItinDay = printTour.itinerary[i];
+                      if (nextItinDay.hotelName === selectedDay.hotelName && nextItinDay.city === selectedDay.city) {
+                        hotelStayDays.push(nextItinDay);
+                        lastStayDayIndex = i;
+                      } else {
+                        break;
+                      }
+                    }
+
+                    // Calculate Checkout Date (next day after the last stay day)
+                    const nextDay = printTour.itinerary?.[lastStayDayIndex + 1];
                     const checkoutDateStr = nextDay ? nextDay.dateStr : (() => {
-                      const pts = (selectedDay.dateStr || '').split('-');
+                      const pts = (hotelStayDays[hotelStayDays.length - 1].dateStr || '').split('-');
                       if (pts.length === 3) {
                         const months = {
                           jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
@@ -1218,6 +1231,24 @@ export default function OperatorPortal({ onLogout }) {
                         return `${pts[0].padStart(2, '0')}/${m}/${pts[2]}`;
                       }
                       return dStr;
+                    };
+
+                    const getShortMpName = (day) => {
+                      const mp = (day.mealPlan || '').toLowerCase();
+                      const mpType = (day.mapType || 'Dinner + Breakfast');
+                      if (mp.startsWith('ap') || (mp.includes('(ap)') && !mp.includes('map')) || mp.includes('breakfast, lunch & dinner') || mp.includes('breakfast, lunch')) return 'AP';
+                      if (!mp.startsWith('ap') && (mp.includes('map lunch') || (mp.includes('breakfast') && mp.includes('lunch') && !mp.includes('dinner')))) return 'MAP Lunch';
+                      if (mp.startsWith('map') || mp.includes('(map') || (mp.includes('breakfast') && mp.includes('dinner') && !mp.includes('lunch'))) {
+                        return mpType === 'Lunch + Breakfast' ? 'MAP Lunch' : 'MAP';
+                      }
+                      if (mp.startsWith('cp') || mp.includes('(cp)') || mp.includes('breakfast only')) return 'CP';
+                      return 'EP';
+                    };
+
+                    const getOrdinal = (n) => {
+                      const s = ["th", "st", "nd", "rd"];
+                      const v = n % 100;
+                      return n + (s[(v - 20) % 10] || s[v] || s[0]);
                     };
 
                     const checkinFormatted = convertDateToSlash(selectedDay.dateStr);
@@ -1306,58 +1337,58 @@ export default function OperatorPortal({ onLogout }) {
                           <div style={{ margin: '22px 0', fontSize: '0.9rem' }}>
                             <div style={{ fontWeight: 'bold', marginBottom: '6px' }}>
                               Meal Plan- {(() => {
-                                const mp = (selectedDay.mealPlan || '').toLowerCase();
-                                if (mp.startsWith('ap') || (mp.includes('(ap)') && !mp.includes('map'))) return 'AP';
-                                if (mp.startsWith('map') || mp.includes('(map')) return 'MAP';
-                                if (mp.startsWith('cp') || mp.includes('(cp)') || mp.includes('breakfast only')) return 'CP';
-                                if (mp.startsWith('ep') || mp.includes('no meal')) return 'EP';
-                                return selectedDay.mealPlan || 'MAP';
+                                const mpNames = hotelStayDays.map(d => getShortMpName(d));
+                                const allSame = mpNames.every(m => m === mpNames[0]);
+                                if (allSame) {
+                                  return mpNames[0];
+                                } else {
+                                  let parts = mpNames.map((m, idx) => `${getOrdinal(idx + 1)} Night on ${m}`);
+                                  if (parts.length > 1) {
+                                    const last = parts.pop();
+                                    return parts.join(', ') + ' and ' + last;
+                                  }
+                                  return parts[0];
+                                }
                               })()}
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', paddingLeft: '2px' }}>
                               {(() => {
-                                const mp = (selectedDay.mealPlan || '').toLowerCase();
-                                const mpType = (selectedDay.mapType || 'Dinner + Breakfast');
-                                const isAP = mp.startsWith('ap') || (mp.includes('(ap)') && !mp.includes('map')) || mp.includes('breakfast, lunch & dinner') || mp.includes('breakfast, lunch');
-                                const isMAP = !isAP && (mp.startsWith('map') || mp.includes('(map') || (mp.includes('breakfast') && mp.includes('dinner') && !mp.includes('lunch')));
-                                const isMAPLunch = !isAP && (mp.includes('map lunch') || (mp.includes('breakfast') && mp.includes('lunch') && !mp.includes('dinner')));
-                                const isCP = !isAP && !isMAP && !isMAPLunch && (mp.startsWith('cp') || mp.includes('(cp)') || mp.includes('breakfast only'));
-                                if (isAP) {
-                                  return (
-                                    <>
-                                      <div>{selectedDay.dateStr}: Check in + Lunch + Dinner</div>
-                                      <div>{checkoutDateStr}: Breakfast + Check Out</div>
-                                    </>
-                                  );
-                                } else if (isMAPLunch || (isMAP && mpType === 'Lunch + Breakfast')) {
-                                  return (
-                                    <>
-                                      <div>{selectedDay.dateStr}: Check in + Lunch</div>
-                                      <div>{checkoutDateStr}: Breakfast + Check Out</div>
-                                    </>
-                                  );
-                                } else if (isMAP) {
-                                  return (
-                                    <>
-                                      <div>{selectedDay.dateStr}: Check in + Dinner</div>
-                                      <div>{checkoutDateStr}: Breakfast + Check Out</div>
-                                    </>
-                                  );
-                                } else if (isCP) {
-                                  return (
-                                    <>
-                                      <div>{selectedDay.dateStr}: Check in</div>
-                                      <div>{checkoutDateStr}: Breakfast + Check Out</div>
-                                    </>
-                                  );
-                                } else {
-                                  return (
-                                    <>
-                                      <div>{selectedDay.dateStr}: Check in</div>
-                                      <div>{checkoutDateStr}: Check Out</div>
-                                    </>
-                                  );
+                                const mealLines = [];
+                                
+                                // Check In Day
+                                const firstMp = getShortMpName(hotelStayDays[0]);
+                                let firstMeals = '';
+                                if (firstMp === 'AP') firstMeals = 'Check In + Lunch + Dinner';
+                                else if (firstMp === 'MAP Lunch') firstMeals = 'Check In + Lunch';
+                                else if (firstMp === 'MAP') firstMeals = 'Check In + Dinner';
+                                else if (firstMp === 'CP') firstMeals = 'Check In';
+                                else firstMeals = 'Check In (No Meals)';
+                                mealLines.push(<div key="checkin">{hotelStayDays[0].dateStr}: {firstMeals}</div>);
+
+                                // Middle Days
+                                for (let i = 1; i < hotelStayDays.length; i++) {
+                                  const prevMp = getShortMpName(hotelStayDays[i-1]);
+                                  const currMp = getShortMpName(hotelStayDays[i]);
+                                  const hasBreakfast = prevMp !== 'EP';
+                                  const hasLunch = currMp === 'AP' || currMp === 'MAP Lunch';
+                                  const hasDinner = currMp === 'AP' || currMp === 'MAP';
+                                  
+                                  const meals = [];
+                                  if (hasBreakfast) meals.push('Breakfast');
+                                  if (hasLunch) meals.push('Lunch');
+                                  if (hasDinner) meals.push('Dinner');
+                                  
+                                  const mealStr = meals.length > 0 ? meals.join(' + ') : 'No Meals';
+                                  mealLines.push(<div key={`mid-${i}`}>{hotelStayDays[i].dateStr}: {mealStr}</div>);
                                 }
+
+                                // Check Out Day
+                                const lastMp = getShortMpName(hotelStayDays[hotelStayDays.length - 1]);
+                                const hasLastBreakfast = lastMp !== 'EP';
+                                const lastMeals = hasLastBreakfast ? 'Breakfast + Check Out' : 'Check Out';
+                                mealLines.push(<div key="checkout">{checkoutDateStr}: {lastMeals}</div>);
+
+                                return mealLines;
                               })()}
                             </div>
                           </div>
