@@ -2194,32 +2194,52 @@ export default function OperatorPortal({ onLogout }) {
         {activeTab === 'dashboard' && (
           <div className="mgmt-content">
             <div className="mgmt-stat-grid">
-              <div className="mgmt-stat-card">
-                <div className="mgmt-stat-icon-wrap"><Compass /></div>
+              <div 
+                className="mgmt-stat-card" 
+                style={{ backgroundColor: '#f0fdfa', borderColor: '#ccfbf1', cursor: 'pointer', transition: 'transform 0.2s ease' }}
+                onClick={() => { setActiveTab('cities'); setShowAddForm(false); setSearchQuery(''); }}
+                title="View Cities"
+              >
+                <div className="mgmt-stat-icon-wrap" style={{ backgroundColor: '#ccfbf1', color: '#0d9488' }}><Compass size={24} /></div>
                 <div>
-                  <h4 style={{ fontSize: '1.25rem', fontWeight: '800' }}>{cities.length}</h4>
-                  <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>{t('totalCities')}</p>
+                  <h4 style={{ fontSize: '1.25rem', fontWeight: '800', color: '#0f172a' }}>{cities.length}</h4>
+                  <p style={{ fontSize: '0.75rem', color: '#475569', fontWeight: '600' }}>{t('totalCities')}</p>
                 </div>
               </div>
-              <div className="mgmt-stat-card">
-                <div className="mgmt-stat-icon-wrap"><Hotel /></div>
+              <div 
+                className="mgmt-stat-card" 
+                style={{ backgroundColor: '#eff6ff', borderColor: '#e0e7ff', cursor: 'pointer', transition: 'transform 0.2s ease' }}
+                onClick={() => { setActiveTab('hotels'); setShowAddForm(false); setSearchQuery(''); }}
+                title="View Hotels"
+              >
+                <div className="mgmt-stat-icon-wrap" style={{ backgroundColor: '#e0e7ff', color: '#4f46e5' }}><Hotel size={24} /></div>
                 <div>
-                  <h4 style={{ fontSize: '1.25rem', fontWeight: '800' }}>{hotels.length}</h4>
-                  <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>{t('totalHotels')}</p>
+                  <h4 style={{ fontSize: '1.25rem', fontWeight: '800', color: '#0f172a' }}>{hotels.length}</h4>
+                  <p style={{ fontSize: '0.75rem', color: '#475569', fontWeight: '600' }}>{t('totalHotels')}</p>
                 </div>
               </div>
-              <div className="mgmt-stat-card">
-                <div className="mgmt-stat-icon-wrap"><Award /></div>
+              <div 
+                className="mgmt-stat-card" 
+                style={{ backgroundColor: '#f0fdf4', borderColor: '#dcfce7', cursor: 'pointer', transition: 'transform 0.2s ease' }}
+                onClick={() => { setActiveTab('guides'); setShowAddForm(false); setSearchQuery(''); }}
+                title="View Guides"
+              >
+                <div className="mgmt-stat-icon-wrap" style={{ backgroundColor: '#dcfce7', color: '#16a34a' }}><Award size={24} /></div>
                 <div>
-                  <h4 style={{ fontSize: '1.25rem', fontWeight: '800' }}>{guides.length}</h4>
-                  <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>{t('totalGuides')}</p>
+                  <h4 style={{ fontSize: '1.25rem', fontWeight: '800', color: '#0f172a' }}>{guides.length}</h4>
+                  <p style={{ fontSize: '0.75rem', color: '#475569', fontWeight: '600' }}>{t('totalGuides')}</p>
                 </div>
               </div>
-              <div className="mgmt-stat-card">
-                <div className="mgmt-stat-icon-wrap"><Clipboard /></div>
+              <div 
+                className="mgmt-stat-card" 
+                style={{ backgroundColor: '#f7fee7', borderColor: '#ecfccb', cursor: 'pointer', transition: 'transform 0.2s ease' }}
+                onClick={() => { setActiveTab('tourBuilder'); setShowAddForm(false); }}
+                title="View Tours"
+              >
+                <div className="mgmt-stat-icon-wrap" style={{ backgroundColor: '#ecfccb', color: '#65a30d' }}><Clipboard size={24} /></div>
                 <div>
-                  <h4 style={{ fontSize: '1.25rem', fontWeight: '800' }}>{tours.filter(t => t.startDate).length}</h4>
-                  <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>Total Tours</p>
+                  <h4 style={{ fontSize: '1.25rem', fontWeight: '800', color: '#0f172a' }}>{tours.filter(t => t.startDate).length}</h4>
+                  <p style={{ fontSize: '0.75rem', color: '#475569', fontWeight: '600' }}>Total Tours</p>
                 </div>
               </div>
             </div>
