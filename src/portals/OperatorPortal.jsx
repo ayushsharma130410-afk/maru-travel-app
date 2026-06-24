@@ -91,8 +91,7 @@ export default function OperatorPortal({ onLogout }) {
   const [shiftActionWait, setShiftActionWait] = useState(false);
   const [shiftActionDismiss, setShiftActionDismiss] = useState(false);
   const [shiftActionRoute, setShiftActionRoute] = useState(false);
-  const [flightStatusCache, setFlightStatusCache] = useState({});
-  const [trackingFlight, setTrackingFlight] = useState(null);
+  // trackingFlight state removed as no longer tracking internally
 
   // New Entity Forms
   const [newCity, setNewCity] = useState({
@@ -433,55 +432,12 @@ export default function OperatorPortal({ onLogout }) {
     await deleteTour(tourCode);
   };
 
-  const trackFlight = async (flightNo, flightDateStr) => {
+  const trackFlight = (flightNo) => {
     if (!flightNo) return;
-    setTrackingFlight(flightNo);
-    
-    // Smart API Tracker - Perfectly syncs with Tour Dates without requiring API keys!
-    setTimeout(() => {
-      let statusText = '✈️ SCHEDULED';
-      let statusColor = '#3B82F6';
-      
-      if (flightDateStr) {
-        const flightDate = new Date(flightDateStr);
-        const today = new Date();
-        flightDate.setHours(0,0,0,0);
-        today.setHours(0,0,0,0);
-        
-        const diffDays = Math.round((flightDate - today) / (1000 * 60 * 60 * 24));
-        
-        if (diffDays > 0) {
-          // Future flight
-          statusText = `📅 SCHEDULED (EXPECTED IN ${diffDays} DAY${diffDays > 1 ? 'S' : ''})`;
-          statusColor = '#3B82F6';
-        } else if (diffDays === 0) {
-          // Flight is today
-          statusText = '🛫 IN AIR (ON TIME)';
-          statusColor = '#10B981';
-          
-          // Add a tiny bit of random realism for today's flights (rare delays)
-          const hash = flightNo.split('').reduce((a, b) => { a = ((a << 5) - a) + b.charCodeAt(0); return a & a }, 0);
-          if (Math.abs(hash) % 5 === 0) {
-             statusText = `⚠️ DELAYED BY ${Math.max(1, Math.abs(hash) % 3)} HR`;
-             statusColor = '#F59E0B';
-          }
-        } else {
-          // Past flight
-          statusText = '🛬 LANDED';
-          statusColor = '#10B981';
-        }
-      } else {
-         // Fallback if no date provided
-         statusText = '✅ TRACKED (ON TIME)';
-         statusColor = '#10B981';
-      }
-
-      setFlightStatusCache(prev => ({
-        ...prev,
-        [flightNo]: { text: statusText, color: statusColor, time: new Date().toLocaleTimeString() }
-      }));
-      setTrackingFlight(null);
-    }, 1200);
+    // Strip spaces and convert to lowercase for the FlightRadar24 URL
+    const cleanFlightNo = flightNo.replace(/\s+/g, '').toLowerCase();
+    const url = `https://www.flightradar24.com/data/flights/${cleanFlightNo}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
   };
 
   const openInstantShift = (tour, dayIndex, flightNo) => {
@@ -496,10 +452,6 @@ export default function OperatorPortal({ onLogout }) {
     setShiftActionDismiss(false);
     setShiftActionRoute(false);
     setShiftModalOpen(true);
-    if (flightNo && !flightStatusCache[flightNo]) {
-      const flightDateStr = tour.itinerary?.[dayIndex]?.dateStr;
-      trackFlight(flightNo, flightDateStr);
-    }
   };
 
   const handleInstantShiftSubmit = async () => {
@@ -2400,22 +2352,17 @@ export default function OperatorPortal({ onLogout }) {
                                 <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: '700' }}>FLIGHT TRACKING</div>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
                                   <span style={{ fontWeight: '800', color: 'var(--navy)' }}>{currentDayItinerary.flightNo}</span>
-                                  {flightStatusCache[currentDayItinerary.flightNo] ? (
-                                    <span style={{ fontSize: '0.8rem', fontWeight: '800', color: flightStatusCache[currentDayItinerary.flightNo].color, background: `${flightStatusCache[currentDayItinerary.flightNo].color}15`, padding: '2px 8px', borderRadius: '12px' }}>
-                                      {flightStatusCache[currentDayItinerary.flightNo].text} (Updated: {flightStatusCache[currentDayItinerary.flightNo].time})
-                                    </span>
-                                  ) : (
-                                    <span style={{ fontSize: '0.8rem', color: '#94A3B8', fontStyle: 'italic' }}>Not tracked yet</span>
-                                  )}
+                                  <span style={{ fontSize: '0.8rem', color: '#10B981', background: '#10B98115', padding: '2px 8px', borderRadius: '12px', fontWeight: '800' }}>
+                                    Live on FlightRadar24
+                                  </span>
                                 </div>
                               </div>
                               <div style={{ display: 'flex', gap: '8px' }}>
                                 <button 
-                                  onClick={() => trackFlight(currentDayItinerary.flightNo, currentDayItinerary.dateStr)}
-                                  disabled={trackingFlight === currentDayItinerary.flightNo}
-                                  style={{ padding: '6px 12px', backgroundColor: '#F1F5F9', border: '1px solid #CBD5E1', borderRadius: '6px', fontSize: '0.8rem', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--navy)' }}
+                                  onClick={() => trackFlight(currentDayItinerary.flightNo)}
+                                  style={{ padding: '6px 12px', backgroundColor: '#3B82F6', border: 'none', borderRadius: '6px', fontSize: '0.8rem', fontWeight: '800', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', color: 'white', boxShadow: '0 2px 4px rgba(59, 130, 246, 0.2)' }}
                                 >
-                                  {trackingFlight === currentDayItinerary.flightNo ? 'Tracking...' : '✈️ Track Status'}
+                                  ✈️ View on FlightRadar24
                                 </button>
                                 <button 
                                   onClick={() => openInstantShift(tour, dayIndex, currentDayItinerary.flightNo)}
@@ -4105,12 +4052,9 @@ export default function OperatorPortal({ onLogout }) {
                 {/* Active Flight Info */}
                 <div style={{ padding: '16px', backgroundColor: '#FEF2F2', borderRadius: '8px', border: '1px solid #FECACA', marginBottom: '20px' }}>
                   <div style={{ fontSize: '0.8rem', color: '#991B1B', fontWeight: '800', marginBottom: '4px' }}>AFFECTED TOUR: {shiftTour?.tourCode}</div>
-                  <div style={{ fontSize: '0.95rem', color: '#7F1D1D', fontWeight: '600' }}>Target Flight: <span style={{ fontWeight: '800' }}>{shiftFlightDetails}</span></div>
-                  {flightStatusCache[shiftFlightDetails] && (
-                    <div style={{ marginTop: '8px', fontSize: '0.9rem', fontWeight: '800', color: flightStatusCache[shiftFlightDetails].color }}>
-                      Live Status: {flightStatusCache[shiftFlightDetails].text}
-                    </div>
-                  )}
+                  <div style={{ fontSize: '1.2rem', fontWeight: '900', color: '#1e293b' }}>
+                    {shiftFlightDetails}
+                  </div>
                 </div>
 
                 {/* Transport Mode Switcher */}
