@@ -17,6 +17,7 @@
     "@capacitor/core": "^8.4.0",
     "@emailjs/browser": "^4.4.1",
     "firebase": "^12.13.0",
+    "flightradar24-client": "^1.0.1",
     "jimp": "^1.6.1",
     "leaflet": "^1.9.4",
     "lucide-react": "^1.16.0",
