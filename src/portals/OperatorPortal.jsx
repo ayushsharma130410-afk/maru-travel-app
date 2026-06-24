@@ -436,29 +436,68 @@ export default function OperatorPortal({ onLogout }) {
   const trackFlight = async (flightNo) => {
     if (!flightNo) return;
     setTrackingFlight(flightNo);
-    // Simulate API call (Free client-side mock)
-    setTimeout(() => {
-      // Deterministic mock based on flight number string length and char codes
-      const hash = flightNo.split('').reduce((a, b) => { a = ((a << 5) - a) + b.charCodeAt(0); return a & a }, 0);
-      const isDelayed = Math.abs(hash) % 3 === 0;
-      const isCanceled = Math.abs(hash) % 7 === 0;
-      
-      let statusText = '✅ ON TIME';
-      let statusColor = '#10B981';
-      if (isCanceled) {
-         statusText = '❌ CANCELED';
-         statusColor = '#EF4444';
-      } else if (isDelayed) {
-         statusText = `⚠️ DELAYED by ${Math.max(1, Math.abs(hash) % 4)} hours`;
-         statusColor = '#F59E0B';
+    
+    try {
+      const apiKey = import.meta.env.VITE_AIRLABS_API_KEY;
+      if (!apiKey) {
+        setFlightStatusCache(prev => ({
+          ...prev,
+          [flightNo]: { text: '⚠️ API Key Missing (Add VITE_AIRLABS_API_KEY to .env)', color: '#F59E0B', time: new Date().toLocaleTimeString() }
+        }));
+        setTrackingFlight(null);
+        return;
       }
 
+      // Real integration with AirLabs API
+      const response = await fetch(`https://airlabs.co/api/v9/flight?flight_iata=${flightNo}&api_key=${apiKey}`);
+      const data = await response.json();
+      
+      if (data && data.response) {
+         const f = data.response;
+         const status = f.status || 'unknown';
+         let statusText = '✈️ SCHEDULED';
+         let statusColor = '#3B82F6';
+         
+         if (status === 'en-route' || status === 'active') {
+           statusText = '🛫 IN AIR (ON TIME)';
+           statusColor = '#10B981';
+           if (f.delayed) {
+             statusText = `⚠️ IN AIR (DELAYED ${f.delayed}m)`;
+             statusColor = '#F59E0B';
+           }
+         } else if (status === 'landed') {
+           statusText = '🛬 LANDED';
+           statusColor = '#10B981';
+         } else if (status === 'delayed') {
+           statusText = `⚠️ DELAYED (${f.delayed || 'Unknown'}m)`;
+           statusColor = '#F59E0B';
+         } else if (status === 'cancelled' || status === 'canceled') {
+           statusText = '❌ CANCELED';
+           statusColor = '#EF4444';
+         } else if (status === 'scheduled') {
+           statusText = `📅 SCHEDULED (Departs: ${f.dep_time || 'TBA'})`;
+           statusColor = '#3B82F6';
+         }
+         
+         setFlightStatusCache(prev => ({
+            ...prev,
+            [flightNo]: { text: statusText, color: statusColor, time: new Date().toLocaleTimeString() }
+         }));
+      } else {
+         setFlightStatusCache(prev => ({
+            ...prev,
+            [flightNo]: { text: '⚠️ Flight Not Found', color: '#64748B', time: new Date().toLocaleTimeString() }
+         }));
+      }
+    } catch (error) {
+      console.error("Flight tracking error:", error);
       setFlightStatusCache(prev => ({
-        ...prev,
-        [flightNo]: { text: statusText, color: statusColor, time: new Date().toLocaleTimeString() }
+         ...prev,
+         [flightNo]: { text: '❌ API Connection Failed', color: '#EF4444', time: new Date().toLocaleTimeString() }
       }));
+    } finally {
       setTrackingFlight(null);
-    }, 1500);
+    }
   };
 
   const openInstantShift = (tour, dayIndex, flightNo) => {
