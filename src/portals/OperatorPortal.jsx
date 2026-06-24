@@ -448,13 +448,42 @@ export default function OperatorPortal({ onLogout }) {
         return;
       }
 
-      // Real integration with AirLabs API
-      const response = await fetch(`https://airlabs.co/api/v9/flight?flight_iata=${flightNo}&api_key=${apiKey}`);
-      const data = await response.json();
+      const cleanFlightNo = flightNo.replace(/\s+/g, '').toUpperCase();
+
+      // Real integration with AirLabs API - Try active flight first
+      let response = await fetch(`https://airlabs.co/api/v9/flight?flight_iata=${cleanFlightNo}&api_key=${apiKey}`);
+      let data = await response.json();
       
-      if (data && data.response) {
-         const f = data.response;
-         const status = f.status || 'unknown';
+      let f = null;
+      let status = 'unknown';
+
+      if (data && data.response && !data.error) {
+         f = data.response;
+         status = f.status || 'unknown';
+      } else {
+         // Fallback to schedules for future flights
+         const schedResponse = await fetch(`https://airlabs.co/api/v9/schedules?flight_iata=${cleanFlightNo}&api_key=${apiKey}`);
+         const schedData = await schedResponse.json();
+         
+         if (schedData && schedData.response && schedData.response.length > 0) {
+            // Find the next upcoming schedule
+            const now = new Date();
+            const upcoming = schedData.response.filter(s => new Date(s.dep_estimated || s.dep_time) >= now);
+            upcoming.sort((a, b) => new Date(a.dep_estimated || a.dep_time) - new Date(b.dep_estimated || b.dep_time));
+            
+            f = upcoming.length > 0 ? upcoming[0] : schedData.response[schedData.response.length - 1];
+            status = f.status || 'scheduled';
+         } else if (data.error) {
+            setFlightStatusCache(prev => ({
+              ...prev,
+              [flightNo]: { text: `⚠️ API Error: ${data.error.message || 'Unknown issue'}`, color: '#EF4444', time: new Date().toLocaleTimeString() }
+            }));
+            setTrackingFlight(null);
+            return;
+         }
+      }
+
+      if (f) {
          let statusText = '✈️ SCHEDULED';
          let statusColor = '#3B82F6';
          
@@ -475,7 +504,7 @@ export default function OperatorPortal({ onLogout }) {
            statusText = '❌ CANCELED';
            statusColor = '#EF4444';
          } else if (status === 'scheduled') {
-           statusText = `📅 SCHEDULED (Departs: ${f.dep_time || 'TBA'})`;
+           statusText = `📅 SCHEDULED (Departs: ${f.dep_time || f.dep_estimated || 'TBA'})`;
            statusColor = '#3B82F6';
          }
          
@@ -486,7 +515,7 @@ export default function OperatorPortal({ onLogout }) {
       } else {
          setFlightStatusCache(prev => ({
             ...prev,
-            [flightNo]: { text: '⚠️ Flight Not Found', color: '#64748B', time: new Date().toLocaleTimeString() }
+            [flightNo]: { text: '⚠️ Flight Not Found or Not Scheduled', color: '#64748B', time: new Date().toLocaleTimeString() }
          }));
       }
     } catch (error) {
